@@ -406,3 +406,84 @@ async def get_user(token, db) -> tuple:
     except ValueError as e:
         return None, str(e)
     uid = payload["sub"]
+      # Honeypot tokens use a random fake UUID — skip DB lookup entirely.
+    # Return a plain ghost object so all API handlers can proceed and
+    # honeypot_gate will route them to shadow vault data.
+    if payload.get("honeypot"):
+        class _GhostUser:
+            pass
+        ghost            = _GhostUser()
+        ghost.user_id    = uid
+        ghost.email      = "honeypot@shadow.internal"
+        ghost.role       = payload.get("role", "patient")
+        ghost.is_active  = True
+        ghost._is_honeypot = True
+        return ghost, None
+
+    result = await db.execute(select(User).where(User.user_id == uid))
+    user   = result.scalar_one_or_none()
+    if not user or not user.is_active:
+        return None, "User not found."
+    return user, None
+
+async def is_flagged(db, user_id: str) -> bool:
+    return False
+
+async def honeypot_gate(db, user, ip: str, ua: str, action: str, table: str) -> bool:
+    trap = getattr(user, "_is_honeypot", False)
+    await log_forensic(db, action, table,
+                       json.dumps({"ip": ip, "ua": ua[:80], "honeypot": trap}))
+    return trap
+
+def mark_honeypot(user, flag: bool):
+    # Don't overwrite a flag already set (e.g. ghost user from get_user)
+    if not getattr(user, "_is_honeypot", False):
+        user._is_honeypot = flag
+
+# ── Shadow (honeypot) data ───────────────────────────────────────────
+SHADOW_PATIENTS = [
+    {"mrn":"PT-9901","full_name":"Eleanor Voss",
+     "primary_diagnosis":"Generalised Anxiety Disorder (F41.1)",
+     "active_treatment":"Sertraline 50mg","status":"Stable",
+     "doctor":"Dr. Fatima Rehman","next_appt":"2025-08-12 10:00"},
+    {"mrn":"PT-9902","full_name":"Marcus Delray",
+     "primary_diagnosis":"Major Depressive Disorder (F32.1)",
+     "active_treatment":"Fluoxetine 20mg","status":"Improving",
+     "doctor":"Dr. Ali Kamran","next_appt":"2025-08-15 14:30"},
+    {"mrn":"PT-9903","full_name":"Priya Nair",
+     "primary_diagnosis":"Bipolar II Disorder (F31.81)",
+     "active_treatment":"Lamotrigine 100mg","status":"Stable",
+     "doctor":"Dr. Sarah Jenkins","next_appt":"2025-08-20 09:00"},
+]
+SHADOW_DOCTOR = {"doc_id":"DOC-SHADOW-01","full_name":"Dr. Elias Thornton","specialization":"Psychiatry"}
+SHADOW_PATIENT_SELF = SHADOW_PATIENTS[0]
+
+# ── Shared async runner (Flask-safe) ────────────────────────────────
+_loop: asyncio.AbstractEventLoop | None = None
+_loop_lock = _threading.Lock()
+
+def _run_loop(loop):
+    """Explicitly set the loop for the background thread before running."""
+    asyncio.set_event_loop(loop)
+    loop.run_forever()
+
+def _get_loop() -> asyncio.AbstractEventLoop:
+    global _loop
+    if _loop is None or _loop.is_closed():
+        with _loop_lock:
+            if _loop is None or _loop.is_closed():
+                _loop = asyncio.new_event_loop()
+                t = _threading.Thread(
+                    target=_run_loop, 
+                    args=(_loop,), 
+                    daemon=True, 
+                    name="phantasm-async-loop"
+                )
+                t.start()
+    return _loop
+
+def run_async(coro):
+    """Run a coroutine on the shared event loop from a sync Flask handler."""
+    loop = _get_loop()
+    future = asyncio.run_coroutine_threadsafe(coro, loop)
+    return future.result(timeout=30)  # 30 s hard timeout
