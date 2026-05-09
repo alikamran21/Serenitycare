@@ -110,3 +110,257 @@ def SessionLocal():
     """Drop-in replacement that generates a session from the lazy-loaded engine."""
     maker = get_session_maker()
     return maker()
+# ── ORM Models (reflect the new schema) ─────────────────────────────
+class Base(DeclarativeBase):
+    pass
+
+class User(Base):
+    """public.users — central authentication table"""
+    __tablename__ = "users"
+    __table_args__ = {"schema": "public"}
+    user_id       = Column(UUID(as_uuid=True), primary_key=True)
+    email         = Column(String(255), unique=True, nullable=False)
+    role          = Column(String(20), nullable=False)
+    password_hash = Column(String(255), nullable=True) # NEW: Hashed credentials
+    is_active     = Column(Boolean, default=True)
+    created_at    = Column(DateTime(timezone=True), server_default=func.now())
+
+class Doctor(Base):
+    """public.doctors"""
+    __tablename__ = "doctors"
+    __table_args__ = {"schema": "public"}
+    doc_id         = Column(String(20), primary_key=True)
+    user_id        = Column(UUID(as_uuid=True), ForeignKey("public.users.user_id", ondelete="CASCADE"), unique=True)
+    full_name      = Column(String(150))
+    specialization = Column(String(150))
+
+class Patient(Base):
+    """public.patients"""
+    __tablename__ = "patients"
+    __table_args__ = {"schema": "public"}
+    mrn               = Column(String(20), primary_key=True)
+    user_id           = Column(UUID(as_uuid=True), ForeignKey("public.users.user_id", ondelete="CASCADE"), unique=True)
+    doc_id            = Column(String(20), ForeignKey("public.doctors.doc_id"))
+    full_name         = Column(String(150))
+    primary_diagnosis = Column(Text)
+    active_treatment  = Column(Text)
+    status            = Column(String(50), default="Active")
+    created_at        = Column(DateTime(timezone=True), server_default=func.now())
+
+class ClinicalNote(Base):
+    """public.clinical_notes"""
+    __tablename__ = "clinical_notes"
+    __table_args__ = {"schema": "public"}
+    note_id    = Column(UUID(as_uuid=True), primary_key=True)
+    mrn        = Column(String(20), ForeignKey("public.patients.mrn", ondelete="CASCADE"))
+    doc_id     = Column(String(20), ForeignKey("public.doctors.doc_id"))
+    notes_text = Column(Text, nullable=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+class Appointment(Base):
+    """public.appointments"""
+    __tablename__ = "appointments"
+    __table_args__ = {"schema": "public"}
+    appt_id      = Column(UUID(as_uuid=True), primary_key=True)
+    mrn          = Column(String(20), ForeignKey("public.patients.mrn"))
+    doc_id       = Column(String(20), ForeignKey("public.doctors.doc_id"))
+    scheduled_at = Column(DateTime(timezone=True))
+    is_urgent    = Column(Boolean, default=False)
+    status       = Column(String(20), default="Scheduled")
+
+class DailyTask(Base):
+    """public.daily_tasks"""
+    __tablename__ = "daily_tasks"
+    __table_args__ = {"schema": "public"}
+    task_id          = Column(UUID(as_uuid=True), primary_key=True)
+    mrn              = Column(String(20), ForeignKey("public.patients.mrn"))
+    task_title       = Column(Text)
+    task_description = Column(Text)
+    is_done          = Column(Boolean, default=False)
+    updated_at       = Column(DateTime(timezone=True), server_default=func.now())
+
+class OTPRequest(Base):
+    """public.otp_requests"""
+    __tablename__ = "otp_requests"
+    __table_args__ = {"schema": "public"}
+    id         = Column(BigInteger, primary_key=True, autoincrement=True)
+    user_id    = Column(UUID(as_uuid=True), ForeignKey("public.users.user_id", ondelete="CASCADE"))
+    otp_code   = Column(String(6), nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    is_used    = Column(Boolean, default=False)
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    created_ip = Column(INET)
+
+    def is_valid(self):
+        if self.is_used:
+            return False
+        expires = self.expires_at
+        if expires is not None and expires.tzinfo is None:
+            expires = expires.replace(tzinfo=timezone.utc)
+        return expires is not None and datetime.now(timezone.utc) < expires
+
+class ForensicLedger(Base):
+    """monitor.forensic_ledger"""
+    __tablename__ = "forensic_ledger"
+    __table_args__ = {"schema": "monitor"}
+    ledger_id    = Column(BigInteger, primary_key=True, autoincrement=True)
+    threat_id    = Column(BigInteger)
+    action_type  = Column(Text)
+    target_table = Column(Text)
+    query_text   = Column(Text)
+    created_at   = Column(DateTime(timezone=True), server_default=func.now())
+
+class SecurityAlert(Base):
+    """monitor.security_alerts"""
+    __tablename__ = "security_alerts"
+    __table_args__ = {"schema": "monitor"}
+    alert_id    = Column(BigInteger, primary_key=True, autoincrement=True)
+    threat_id   = Column(BigInteger)
+    alert_title = Column(Text)
+    description = Column(Text)
+    is_resolved = Column(Boolean, default=False)
+    created_at  = Column(DateTime(timezone=True), server_default=func.now())
+
+class ThreatActor(Base):
+    """monitor.threat_actors"""
+    __tablename__ = "threat_actors"
+    __table_args__ = {"schema": "monitor"}
+    threat_id    = Column(BigInteger, primary_key=True, autoincrement=True)
+    ip_address   = Column(INET)
+    reason       = Column(Text)
+    threat_level = Column(String(20), default="medium")
+    flagged_at   = Column(DateTime(timezone=True), server_default=func.now())
+
+class LoginActivity(Base):
+    """monitor.login_activity"""
+    __tablename__ = "login_activity"
+    __table_args__ = {"schema": "monitor"}
+    login_id        = Column(BigInteger, primary_key=True, autoincrement=True)
+    email_attempted = Column(String(255))
+    ip_address      = Column(INET)
+    is_success      = Column(Boolean, default=False)
+    attempt_time    = Column(DateTime(timezone=True), server_default=func.now())
+
+# ── Security helpers ─────────────────────────────────────────────────
+_ATTACK_PATTERNS = [
+    ("SQL_INJECTION", [
+        re.compile(r"(--|;|\/\*|\*\/)", re.I),
+        re.compile(r"\b(union\s+select|select\s+.*\s+from)\b", re.I),
+        re.compile(r"\b(drop|alter|truncate|exec|execute)\b", re.I),
+        re.compile(r"(1\s*=\s*1|'\s*or\s*'1)", re.I),
+    ]),
+    ("XSS", [
+        re.compile(r"<\s*script[\s>]", re.I),
+        re.compile(r"javascript\s*:", re.I),
+    ]),
+    ("PATH_TRAVERSAL", [re.compile(r"\.\./")]),
+    ("CMD_INJECTION", [re.compile(r"[;&|`]\s*(ls|cat|whoami|bash|sh)", re.I)]),
+]
+
+_rate_store: dict = defaultdict(deque)
+
+def get_client_ip(request) -> str:
+    hdrs = request.headers if hasattr(request, "headers") else {}
+    xff  = hdrs.get("x-forwarded-for", hdrs.get("X-Forwarded-For", ""))
+    return xff.split(",")[0].strip() if xff else "127.0.0.1"
+
+def check_rate_limit(ip: str) -> bool:
+    now = time.monotonic()
+    dq  = _rate_store[ip]
+    while dq and dq[0] < now - RATE_LIMIT_WINDOW:
+        dq.popleft()
+    if len(dq) >= RATE_LIMIT_MAX:
+        return False
+    dq.append(now)
+    return True
+
+def scan_for_attacks(text: str):
+    if not text:
+        return None
+    for category, patterns in _ATTACK_PATTERNS:
+        for p in patterns:
+            m = p.search(text)
+            if m:
+                return category, m.group(0)[:80]
+    return None
+
+async def flag_threat(db, ip: str, reason: str, level: str = "high"):
+    try:
+        ta = ThreatActor(ip_address=ip, reason=reason, threat_level=level)
+        db.add(ta)
+        await db.flush()
+        return ta.threat_id
+    except Exception as e:
+        log.error("flag_threat error: %s", e)
+        return None
+
+async def log_forensic(db, action: str, table: str, payload: str, threat_id=None):
+    try:
+        db.add(ForensicLedger(threat_id=threat_id, action_type=action,
+                               target_table=table, query_text=payload))
+        await db.commit()
+    except Exception as e:
+        log.error("log_forensic error: %s", e)
+        try: await db.rollback()
+        except: pass
+
+async def log_login(db, email: str, ip: str, success: bool):
+    try:
+        async with SessionLocal() as fresh_db:
+            fresh_db.add(LoginActivity(email_attempted=email, ip_address=ip, is_success=success))
+            await fresh_db.commit()
+    except Exception as e:
+        log.error("log_login error: %s", e)
+
+# ── JWT ──────────────────────────────────────────────────────────────
+def create_token(user_id: str, role: str, is_honeypot: bool = False) -> str:
+    exp = datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRE)
+    return jwt.encode(
+        {"sub": str(user_id), "role": role, "honeypot": is_honeypot,
+         "exp": exp, "iat": datetime.now(timezone.utc)},
+        JWT_SECRET, algorithm=JWT_ALGORITHM,
+    )
+
+def decode_token(token: str) -> dict:
+    try:
+        return jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+    except JWTError as e:
+        raise ValueError("Invalid or expired token") from e
+
+def generate_otp() -> str:
+    return "".join(random.SystemRandom().choices(string.digits, k=6))
+
+def mask_email(email: str) -> str:
+    try:
+        local, domain = email.split("@", 1)
+        masked = local[0] + "*" * max(len(local)-2, 1) + (local[-1] if len(local)>2 else "")
+        return f"{masked}@{domain}"
+    except:
+        return "****@****.***"
+
+# ── Email ────────────────────────────────────────────────────────────
+def send_otp_email(to: str, otp: str, name: str = "") -> None:
+    greeting = f"Dear {name}," if name else "Hello,"
+    html = f"""<html><body style="font-family:Arial,sans-serif;background:#f8fafc;">
+      <div style="max-width:480px;margin:40px auto;background:#fff;border-radius:12px;border:1px solid #e2e8f0;">
+        <div style="background:#0f766e;padding:24px;text-align:center;border-radius:12px 12px 0 0;">
+          <h1 style="color:#fff;margin:0;font-size:20px;">Serenity Psychiatric Care</h1>
+        </div>
+        <div style="padding:32px;">
+          <p style="color:#334155;">{greeting}</p>
+          <p style="color:#475569;">Your verification code:</p>
+          <div style="background:#f0fdf4;border:2px solid #86efac;border-radius:8px;padding:16px;text-align:center;margin:16px 0;">
+            <span style="font-size:36px;font-weight:700;letter-spacing:10px;color:#15803d;font-family:monospace;">{otp}</span>
+          </div>
+          <p style="color:#94a3b8;font-size:12px;">Expires in {OTP_EXPIRE} minutes. Do not share this code.</p>
+        </div>
+      </div>
+    </body></html>"""
+    actual_to = TEST_EMAIL_OVERRIDE if TEST_EMAIL_OVERRIDE else to
+    resend.api_key = RESEND_API_KEY
+    resend.Emails.send({
+        "from":    f"{RESEND_FROM_NAME} <{RESEND_FROM}>",
+        "to":      [actual_to],
+        "subject": "Your Serenity Portal Verification Code",
+        "html":    html,
+    })
