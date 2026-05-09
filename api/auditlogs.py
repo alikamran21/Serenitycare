@@ -62,3 +62,14 @@ async def _run(token, kind, skip, limit):
             })
 
         return 200, {"logs": logs_out}
+def handler(request, context=None):
+    if request.method == "OPTIONS": return {"statusCode": 204, "headers": _headers("GET, OPTIONS"), "body": ""}
+    if request.method != "GET":     return err("Method not allowed.", 405, "GET, OPTIONS")
+    
+    args  = getattr(request, "args", {}) or {}
+    kind  = args.get("kind", "logs")
+    skip  = int(args.get("skip", 0))
+    limit = min(int(args.get("limit", 100)), 500)
+    
+    status, data = run_async(_run(get_token(request), kind, skip, limit))
+    return {"statusCode": status, "headers": _headers("GET, OPTIONS"), "body": json.dumps(data)}
