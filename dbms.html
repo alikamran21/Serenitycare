@@ -1,0 +1,475 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Phantasm-DB | Active Defense Presentation</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Poppins:wght@400;500;600;700&family=Fira+Code:wght@400;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* --- BASE STYLES --- */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        
+        body {
+            background-color: #e2e8f0; 
+            font-family: 'Inter', sans-serif;
+            color: #334155;
+            overflow: hidden; /* Prevent scrolling for presentation mode */
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+        }
+
+        /* --- PRESENTATION CONTROLLER --- */
+        .presentation-container {
+            width: 1280px;
+            height: 720px;
+            position: relative;
+        }
+
+        /* --- SLIDE CONTAINER --- */
+        .slide {
+            background-color: #ffffff;
+            border-radius: 24px;
+            box-shadow: 0 20px 50px rgba(5, 150, 105, 0.08), 0 4px 15px rgba(0,0,0,0.03);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            width: 100%;
+            padding: 70px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            overflow: hidden;
+            border: 1px solid rgba(16, 185, 129, 0.1);
+            
+            /* Slide Transitions */
+            opacity: 0;
+            visibility: hidden;
+            transform: translateX(50px);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .slide.active {
+            opacity: 1;
+            visibility: visible;
+            transform: translateX(0);
+            z-index: 10;
+        }
+
+        .slide.previous {
+            transform: translateX(-50px);
+        }
+
+        /* Ambient Beautiful Green Glows */
+        .slide::before {
+            content: '';
+            position: absolute;
+            top: -150px;
+            left: -150px;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(16, 185, 129, 0.06) 0%, rgba(255,255,255,0) 70%);
+            border-radius: 50%;
+            z-index: 0;
+        }
+        .slide::after {
+            content: '';
+            position: absolute;
+            bottom: -200px;
+            right: -100px;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(5, 150, 105, 0.04) 0%, rgba(255,255,255,0) 70%);
+            border-radius: 50%;
+            z-index: 0;
+        }
+
+        .slide > * { position: relative; z-index: 1; }
+
+        /* --- TYPOGRAPHY --- */
+        h1, h2, h3, h4 { font-family: 'Poppins', sans-serif; color: #0f172a; margin-bottom: 20px; }
+        p { font-size: 19px; line-height: 1.7; color: #475569; margin-bottom: 20px; font-weight: 300; }
+        .code-font { font-family: 'Fira Code', monospace; }
+
+        .slide-title {
+            font-size: 40px;
+            font-weight: 600;
+            color: #064e3b;
+            margin-bottom: 40px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .slide-title::before {
+            content: ''; display: block; width: 8px; height: 40px;
+            background: linear-gradient(180deg, #10b981 0%, #059669 100%);
+            border-radius: 4px;
+        }
+
+        .content-wrapper { flex-grow: 1; display: flex; flex-direction: column; justify-content: center; }
+
+        /* --- TITLE SLIDE --- */
+        .title-slide { text-align: center; align-items: center; justify-content: center; }
+        .title-slide h1 {
+            font-size: 72px; font-weight: 700; margin-bottom: 10px; letter-spacing: -1px;
+            background: linear-gradient(135deg, #064e3b 0%, #10b981 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+        }
+        .title-slide .subtitle { font-size: 26px; color: #64748b; font-weight: 400; max-width: 900px; margin-bottom: 40px;}
+        .title-badge {
+            background: rgba(16, 185, 129, 0.1); color: #059669; padding: 8px 20px; border-radius: 30px;
+            font-size: 16px; font-weight: 600; text-transform: uppercase; letter-spacing: 1.5px; margin-bottom: 30px; display: inline-block;
+        }
+        
+        .nav-hint {
+            position: absolute; bottom: 40px; left: 50%; transform: translateX(-50%);
+            display: flex; align-items: center; gap: 10px; color: #94a3b8; font-size: 14px; font-weight: 500;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse { 0%, 100% { opacity: 0.5; } 50% { opacity: 1; } }
+
+        /* --- LAYOUTS & COMPONENTS --- */
+        .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 40px; width: 100%; }
+        .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 30px; width: 100%; }
+
+        .card {
+            background: #ffffff; border: 1px solid #f1f5f9; border-radius: 20px; padding: 35px;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.03); position: relative; overflow: hidden;
+        }
+        .card-highlight {
+            border: 1px solid rgba(16, 185, 129, 0.2); background: linear-gradient(180deg, #ffffff 0%, #f0fdf4 100%);
+            box-shadow: 0 15px 35px rgba(16, 185, 129, 0.05);
+        }
+        .card-highlight::before {
+            content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 4px;
+            background: linear-gradient(90deg, #10b981, #059669);
+        }
+        .card h3 { font-size: 24px; color: #0f172a; margin-bottom: 15px; display: flex; align-items: center; gap: 12px; }
+        .card-highlight h3 { color: #064e3b; }
+
+        ul.custom-list { list-style: none; padding: 0; }
+        ul.custom-list li { position: relative; padding-left: 30px; margin-bottom: 12px; font-size: 18px; color: #475569; }
+        ul.custom-list li::before {
+            content: '\f058'; font-family: 'Font Awesome 6 Free'; font-weight: 900; color: #10b981;
+            position: absolute; left: 0; top: 2px; font-size: 18px;
+        }
+
+        /* --- ERD / DB DESIGN STYLES --- */
+        .erd-container { display: flex; flex-direction: column; align-items: center; gap: 20px; width: 100%; }
+        .erd-row { display: flex; justify-content: center; gap: 30px; width: 100%; position: relative; }
+        .entity-box {
+            background: #ffffff; border: 2px solid #10b981; border-radius: 12px; padding: 15px 25px;
+            box-shadow: 0 10px 20px rgba(16, 185, 129, 0.1); text-align: center; min-width: 200px; z-index: 2;
+        }
+        .entity-box.weak { border-style: dashed; }
+        .entity-box.super { background: #f0fdf4; border-width: 3px; }
+        .entity-title { font-family: 'Fira Code', monospace; font-weight: 600; font-size: 18px; color: #064e3b; border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 8px;}
+        .entity-attr { font-size: 13px; color: #64748b; text-align: left; line-height: 1.4; }
+        .entity-attr strong { color: #10b981; }
+
+        /* Connectors */
+        .connector-vertical { width: 2px; height: 30px; background: #cbd5e1; margin: 0 auto; }
+        .connector-horizontal { height: 2px; width: 50px; background: #cbd5e1; margin: auto 0; position: relative;}
+        .cardinality { position: absolute; font-size: 12px; font-weight: 600; color: #64748b; background: white; padding: 2px; }
+        
+        .db-concept-badge {
+            display: inline-block; padding: 4px 10px; border-radius: 6px; font-size: 13px; font-weight: 600;
+            background: #f1f5f9; color: #475569; margin-right: 8px; margin-bottom: 8px; border: 1px solid #e2e8f0;
+        }
+        .db-concept-badge.primary { background: #f0fdf4; color: #059669; border-color: #a7f3d0; }
+
+        /* Utilities */
+        .text-green { color: #059669; font-weight: 600; }
+        .slide-number { position: absolute; bottom: 30px; right: 40px; font-size: 16px; font-weight: 600; color: #cbd5e1; }
+        .progress-bar { position: absolute; bottom: 0; left: 0; height: 6px; background: #10b981; transition: width 0.3s ease; border-radius: 0 4px 4px 0;}
+    </style>
+</head>
+<body>
+
+<div class="presentation-container">
+
+    <!-- SLIDE 1: Title -->
+    <div class="slide active title-slide" id="slide-1">
+        <div class="title-badge">Capstone Project</div>
+        <h1>Phantasm-DB</h1>
+        <p class="subtitle">Autonomous Cognitive Deception & Relational Forensic Architecture in a Psychiatric EHR System</p>
+        <p style="font-size: 18px; color: #94a3b8; font-weight: 500;">Fatima Rehman & Ali Kamran</p>
+        
+        <div class="nav-hint">
+            <span>Use</span> <i class="fa-solid fa-arrow-right border border-slate-300 rounded px-2 py-1 text-slate-500"></i> <span>to navigate</span>
+        </div>
+    </div>
+
+    <!-- SLIDE 2: The Problem -->
+    <div class="slide" id="slide-2">
+        <h2 class="slide-title">The Problem: Vulnerability in Healthcare DBs</h2>
+        <div class="content-wrapper grid-2">
+            <div class="card">
+                <h3><i class="fa-solid fa-database text-rose-500"></i> The Flaw of Traditional DBMS</h3>
+                <p>Traditional database security operates on a rigid, binary <strong>"Access/Deny"</strong> paradigm.</p>
+                <p>Once a threat actor bypasses the perimeter (via SQL injection, compromised credentials, etc.), the system <strong>implicitly trusts</strong> the authenticated session, giving free rein to scrape or destroy data.</p>
+                <p>Passive security simply blocks known attacks, which inadvertently alerts the hacker to adapt their tactics.</p>
+            </div>
+            <div class="card card-highlight">
+                <h3><i class="fa-solid fa-file-medical text-teal-500"></i> Why Medical Data (PHI)?</h3>
+                <p>Unlike financial data (credit cards), which can be frozen or reissued, a patient's psychiatric history, therapy notes, and SSNs are <strong>immutable</strong>.</p>
+                <ul class="custom-list">
+                    <li>High value for ransomware and blackmail.</li>
+                    <li>Irreversible damage upon exfiltration.</li>
+                    <li>Requires defense beyond just "blocking."</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLIDE 3: The Solution -->
+    <div class="slide" id="slide-3">
+        <h2 class="slide-title">Our Solution: Active Defense & Deception</h2>
+        <div class="content-wrapper">
+            <div class="card card-highlight" style="margin-bottom: 30px;">
+                <h3><i class="fa-solid fa-shield-virus"></i> Phantasm-DB: The Deception Engine</h3>
+                <p>Instead of passively blocking malicious requests, we built an autonomous <strong>"Active Defense"</strong> middleware. It intercepts attacks and silently traps the hacker in a "Shadow Schema"—a structurally identical but entirely synthetic honeypot.</p>
+            </div>
+            <div class="grid-3">
+                <div class="card" style="padding: 25px;">
+                    <h4 style="font-size: 18px; color: #064e3b;"><i class="fa-solid fa-microchip"></i> 1. Deep Packet Inspection</h4>
+                    <p style="font-size: 15px;">Heuristic functions scan payloads against a <code>Detection_Policies</code> matrix (e.g., regex for SQLi) to flag malicious sessions instantly.</p>
+                </div>
+                <div class="card" style="padding: 25px;">
+                    <h4 style="font-size: 18px; color: #064e3b;"><i class="fa-solid fa-door-open"></i> 2. The Honeypot Gate</h4>
+                    <p style="font-size: 15px;">Context-switching short-circuits flagged requests. The attacker gets HTTP 200 (OK) but interacts with procedurally generated decoy objects.</p>
+                </div>
+                <div class="card" style="padding: 25px;">
+                    <h4 style="font-size: 18px; color: #064e3b;"><i class="fa-solid fa-folder-tree"></i> 3. Forensic Archiving</h4>
+                    <p style="font-size: 15px;">A logging mechanism writes the attacker's raw SQL payloads, network fingerprints, and behavioral metrics to an immutable relational ledger.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLIDE 4: Schema & Entities -->
+    <div class="slide" id="slide-4">
+        <h2 class="slide-title">Database Schema Overview (10 Entities)</h2>
+        <div class="content-wrapper">
+            <p>Phantasm-DB is built on a highly normalized relational schema utilizing SQLAlchemy ORM. It employs advanced paradigms to isolate real data from the deception engine.</p>
+            <div class="grid-2">
+                <div class="card">
+                    <h3><i class="fa-solid fa-users text-teal-500"></i> Identity Layer</h3>
+                    <p style="font-size: 16px;">Manages authentication and risk tracking without polluting clinical datasets.</p>
+                    <div>
+                        <span class="db-concept-badge primary">Global_Identities (Superclass)</span>
+                        <span class="db-concept-badge">Production_Users</span>
+                        <span class="db-concept-badge">Threat_Actors</span>
+                        <span class="db-concept-badge">Doctors</span>
+                        <span class="db-concept-badge">Patients</span>
+                    </div>
+                </div>
+                <div class="card card-highlight">
+                    <h3><i class="fa-solid fa-user-secret"></i> Forensic & Deception Layer</h3>
+                    <p style="font-size: 16px;">Operates autonomously to monitor, flag, and deceive incoming sessions.</p>
+                    <div>
+                        <span class="db-concept-badge primary">Forensic_Ledger (Strong)</span>
+                        <span class="db-concept-badge">Real_Time_Alerts (Weak)</span>
+                        <span class="db-concept-badge">Detection_Policies</span>
+                        <span class="db-concept-badge">Shadow_Manifest</span>
+                        <span class="db-concept-badge">Honey_Tokens</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLIDE 5: ERD & Cardinality -->
+    <div class="slide" id="slide-5">
+        <h2 class="slide-title">Entity Relationships & Cardinality</h2>
+        <div class="content-wrapper">
+            <div class="erd-container">
+                <!-- ISA Hierarchy -->
+                <div class="erd-row">
+                    <div class="entity-box super">
+                        <div class="entity-title">Global_Identities</div>
+                        <div class="entity-attr"><strong>PK</strong> identity_id<br>ip_address<br>risk_score</div>
+                    </div>
+                </div>
+                <div class="erd-row" style="gap: 120px; align-items: flex-start; margin-top: -10px;">
+                    <div style="border-top: 2px solid #cbd5e1; border-left: 2px solid #cbd5e1; border-right: 2px solid #cbd5e1; width: 400px; height: 20px; position: absolute; top: 0;"></div>
+                    <div class="connector-vertical" style="height: 20px;"></div>
+                </div>
+                <div class="erd-row" style="gap: 80px; margin-top: -10px;">
+                    <div class="entity-box">
+                        <div class="entity-title">Production_Users</div>
+                        <div class="entity-attr"><strong>FK</strong> identity_id<br>is_flagged_as_attacker</div>
+                    </div>
+                    <div class="entity-box" style="border-color: #ef4444;">
+                        <div class="entity-title">Threat_Actors</div>
+                        <div class="entity-attr"><strong>FK</strong> identity_id<br>fingerprint_hash</div>
+                    </div>
+                </div>
+                
+                <hr style="width: 100%; border: 1px dashed #e2e8f0; margin: 20px 0;">
+                
+                <!-- 1:N Relationship -->
+                <div class="erd-row" style="align-items: center;">
+                    <div class="entity-box super" style="width: 250px;">
+                        <div class="entity-title">Global_Identities</div>
+                    </div>
+                    <div class="connector-horizontal"><span class="cardinality" style="left: 0; top: -15px;">1</span><span class="cardinality" style="right: 0; top: -15px;">N</span></div>
+                    <div class="entity-box">
+                        <div class="entity-title">Forensic_Ledger</div>
+                        <div class="entity-attr"><strong>PK</strong> log_id<br><strong>FK</strong> identity_id<br>raw_query</div>
+                    </div>
+                    <div class="connector-horizontal" style="background: repeating-linear-gradient(90deg, #cbd5e1, #cbd5e1 5px, transparent 5px, transparent 10px);"><span class="cardinality" style="left: 0; top: -15px;">1</span><span class="cardinality" style="right: 0; top: -15px;">N</span></div>
+                    <div class="entity-box weak">
+                        <div class="entity-title">Real_Time_Alerts</div>
+                        <div class="entity-attr"><strong>Composite PK</strong><br><strong>FK</strong> log_id</div>
+                    </div>
+                </div>
+                <p style="text-align: center; font-size: 14px; margin-top: 10px; color: #64748b;">
+                    <strong>Generalization (ISA Hierarchy):</strong> Top-Down Specialization manages distinct roles.<br>
+                    <strong>Weak Entity:</strong> Real_Time_Alerts depends entirely on Forensic_Ledger for its existence.
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLIDE 6: Normalization Concepts -->
+    <div class="slide" id="slide-6">
+        <h2 class="slide-title">Applying Database Normalization</h2>
+        <div class="content-wrapper grid-2">
+            <div>
+                <p>We structured our 10-table schema to minimize redundancy, prevent data anomalies, and optimize query speed during real-time threat analysis.</p>
+                
+                <div style="margin-bottom: 25px;">
+                    <h4 style="color: #064e3b; margin-bottom: 5px;">First Normal Form (1NF)</h4>
+                    <p style="font-size: 16px; margin-bottom: 0;"><strong>Rule:</strong> Atomic values, no repeating groups.</p>
+                    <p style="font-size: 15px; background: #f8fafc; padding: 10px; border-left: 3px solid #10b981;"><em>Implementation:</em> The <code>Detection_Policies</code> table stores single regex patterns per row rather than an array of patterns, allowing the heuristic engine to query specific threat signatures instantly.</p>
+                </div>
+                
+                <div style="margin-bottom: 25px;">
+                    <h4 style="color: #064e3b; margin-bottom: 5px;">Second Normal Form (2NF)</h4>
+                    <p style="font-size: 16px; margin-bottom: 0;"><strong>Rule:</strong> 1NF + No partial dependencies on composite keys.</p>
+                    <p style="font-size: 15px; background: #f8fafc; padding: 10px; border-left: 3px solid #10b981;"><em>Implementation:</em> In <code>Real_Time_Alerts</code>, attributes like <code>severity</code> depend entirely on the composite primary key, not just a part of it, ensuring alert integrity.</p>
+                </div>
+            </div>
+            <div>
+                <div style="margin-bottom: 25px;">
+                    <h4 style="color: #064e3b; margin-bottom: 5px;">Third Normal Form (3NF)</h4>
+                    <p style="font-size: 16px; margin-bottom: 0;"><strong>Rule:</strong> 2NF + No transitive dependencies.</p>
+                    <p style="font-size: 15px; background: #f8fafc; padding: 10px; border-left: 3px solid #10b981;"><em>Implementation:</em> The <code>Forensic_Ledger</code> links to <code>Global_Identities</code> via foreign key. We do not duplicate the <code>ip_address</code> in the ledger; it is retrieved via relational join, avoiding update anomalies if an IP changes.</p>
+                </div>
+                <div class="card card-highlight" style="padding: 20px;">
+                    <h4 style="font-size: 16px;"><i class="fa-solid fa-bolt"></i> Database Triggers & Throttling</h4>
+                    <p style="font-size: 14px; margin-bottom: 0;">We utilized SQL Triggers as a "Tripwire" mechanism. If an attacker touches a <code>Honey_Token</code> (a fake record), the trigger automatically fires a stored procedure to insert an alert and implement query throttling (e.g., <code>pg_sleep()</code>) to slow down data dumping.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLIDE 7: Simulation Workflow -->
+    <div class="slide" id="slide-7">
+        <h2 class="slide-title">Simulation Mechanics & System Security</h2>
+        <div class="content-wrapper">
+            <div class="grid-2" style="align-items: center;">
+                <div style="display: flex; flex-direction: column; gap: 20px;">
+                    <div class="card" style="padding: 20px;">
+                        <h4 style="margin-bottom: 5px; color: #ef4444;"><i class="fa-solid fa-bug"></i> 1. The Attack Vector</h4>
+                        <p style="font-size: 15px; margin-bottom: 0;">An adversary attempts a SQL injection on the authentication endpoint: <code class="code-font bg-slate-100 px-2 rounded">DOC-001' OR 1=1 --</code>.</p>
+                    </div>
+                    <div class="card" style="padding: 20px;">
+                        <h4 style="margin-bottom: 5px; color: #f59e0b;"><i class="fa-solid fa-magnifying-glass"></i> 2. The Detection Phase</h4>
+                        <p style="font-size: 15px; margin-bottom: 0;">The heuristic engine identifies the Boolean inference. The attacker’s IP is logged, and the <code class="code-font bg-slate-100 px-2 rounded">is_flagged</code> parameter is tripped.</p>
+                    </div>
+                    <div class="card card-highlight" style="padding: 20px;">
+                        <h4 style="margin-bottom: 5px;"><i class="fa-solid fa-ghost"></i> 3. The Deception Phase</h4>
+                        <p style="font-size: 15px; margin-bottom: 0;">The system synthesizes a <em>successful</em> authentication response. The attacker drops into the dashboard, which is now populated entirely by the <code>Shadow_Manifest</code>.</p>
+                    </div>
+                    <div class="card" style="padding: 20px;">
+                        <h4 style="margin-bottom: 5px; color: #10b981;"><i class="fa-solid fa-lock"></i> 4. The Resolution</h4>
+                        <p style="font-size: 15px; margin-bottom: 0;">Attacker scrapes fake data. Real data remains cryptographically secure. <strong>0% PHI Compromised.</strong></p>
+                    </div>
+                </div>
+                <div style="text-align: center; padding: 40px; background: #f8fafc; border-radius: 24px; border: 1px solid #e2e8f0;">
+                    <i class="fa-solid fa-shield-halved" style="font-size: 100px; color: #10b981; margin-bottom: 20px;"></i>
+                    <h3 style="font-size: 28px;">Admin SIEM Dashboard</h3>
+                    <p style="font-size: 16px;">The simulation features a hidden Security Operations Center (SOC) dashboard that allows admins to view the Live Ledger, track threat actors, and visualize the intercepted queries in real-time.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- SLIDE 8: Conclusion -->
+    <div class="slide title-slide" id="slide-8" style="text-align: center;">
+        <div class="content-wrapper">
+            <div class="title-badge" style="background: rgba(14, 165, 233, 0.1); color: #0ea5e9;">Project Conclusion</div>
+            <h2 style="font-size: 56px; color: #0f172a; margin-bottom: 20px; font-weight: 700;">A New Era of Database Security</h2>
+            <p style="font-size: 24px; color: #10b981; font-weight: 500; margin-bottom: 40px; max-width: 800px; line-height: 1.5;">
+                Turning adversarial persistence into a structural forensic asset. Protecting immutable medical data even upon total perimeter failure.
+            </p>
+            <div style="width: 80px; height: 6px; background: linear-gradient(90deg, #10b981, #0ea5e9); margin: 0 auto; border-radius: 3px;"></div>
+            
+            <div style="margin-top: 60px; font-size: 18px; color: #64748b; font-weight: 500;">
+                <p>Thank You</p>
+                <p style="font-size: 14px;">Questions & Live Simulation Demo</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Progress & Slide Number -->
+    <div class="slide-number" id="slideCounter">1 / 8</div>
+    <div class="progress-bar" id="progressBar"></div>
+
+</div>
+
+<!-- --- JAVASCRIPT FOR PRESENTATION LOGIC --- -->
+<script>
+    document.addEventListener('DOMContentLoaded', () => {
+        const slides = document.querySelectorAll('.slide');
+        const slideCounter = document.getElementById('slideCounter');
+        const progressBar = document.getElementById('progressBar');
+        const totalSlides = slides.length;
+        let currentSlideIndex = 0;
+
+        function updatePresentation() {
+            slides.forEach((slide, index) => {
+                slide.classList.remove('active', 'previous');
+                if (index === currentSlideIndex) {
+                    slide.classList.add('active');
+                } else if (index < currentSlideIndex) {
+                    slide.classList.add('previous');
+                }
+            });
+
+            // Update UI indicators
+            slideCounter.textContent = `${currentSlideIndex + 1} / ${totalSlides}`;
+            const progressPercentage = ((currentSlideIndex + 1) / totalSlides) * 100;
+            progressBar.style.width = `${progressPercentage}%`;
+        }
+
+        // Keyboard Navigation
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowRight' || e.key === 'Space' || e.key === 'ArrowDown') {
+                if (currentSlideIndex < totalSlides - 1) {
+                    currentSlideIndex++;
+                    updatePresentation();
+                }
+            } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+                if (currentSlideIndex > 0) {
+                    currentSlideIndex--;
+                    updatePresentation();
+                }
+            }
+        });
+
+        // Initialize
+        updatePresentation();
+    });
+</script>
+
+</body>
+</html>
