@@ -364,3 +364,45 @@ def send_otp_email(to: str, otp: str, name: str = "") -> None:
         "subject": "Your Serenity Portal Verification Code",
         "html":    html,
     })
+# ── HTTP helpers ─────────────────────────────────────────────────────
+_ALLOWED_ORIGIN = os.environ.get("ALLOWED_ORIGINS", "*").split(",")[0].strip()
+
+def _headers(methods="POST, OPTIONS"):
+    return {
+        "Access-Control-Allow-Origin":  _ALLOWED_ORIGIN,
+        "Access-Control-Allow-Methods": methods,
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Init-Secret",
+        "Content-Type": "application/json",
+    }
+
+def ok(data, status=200, methods="POST, OPTIONS"):
+    return {"statusCode": status, "headers": _headers(methods), "body": json.dumps(data)}
+
+def err(detail, status=400, methods="POST, OPTIONS"):
+    return {"statusCode": status, "headers": _headers(methods), "body": json.dumps({"detail": detail})}
+
+def preflight(methods="POST, OPTIONS"):
+    return {"statusCode": 204, "headers": _headers(methods), "body": ""}
+
+def parse_body(request):
+    try:
+        raw = getattr(request, "body", b"") or b""
+        if isinstance(raw, str): raw = raw.encode()
+        return json.loads(raw) if raw else {}
+    except:
+        return {}
+
+def get_token(request):
+    hdrs = request.headers if hasattr(request, "headers") else {}
+    auth = hdrs.get("Authorization", hdrs.get("authorization", ""))
+    return auth[7:] if auth.startswith("Bearer ") else None
+
+# ── Auth helpers ─────────────────────────────────────────────────────
+async def get_user(token, db) -> tuple:
+    if not token:
+        return None, "Not authenticated."
+    try:
+        payload = decode_token(token)
+    except ValueError as e:
+        return None, str(e)
+    uid = payload["sub"]
