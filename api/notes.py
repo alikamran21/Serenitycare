@@ -50,5 +50,21 @@ async def _run(token, body, method, ip, ua):
 
         r_doc = await db.execute(select(Doctor).where(Doctor.user_id == user.user_id))
         doc   = r_doc.scalar_one_or_none()
+       db.add(ClinicalNote(
+            note_id=uuid.uuid4(), mrn=mrn,
+            doc_id=doc.doc_id if doc else None,
+            notes_text=notes_text,
+        ))
+        await db.commit()
+        await log_forensic(db, "NOTE_SAVED", "clinical_notes", json.dumps({"mrn": mrn}))
+        return 200, {"detail": "Note saved successfully."}
 
+def handler(request, context=None):
+    M = "GET, POST, OPTIONS"
+    if request.method == "OPTIONS": return {"statusCode": 204, "headers": _headers(M), "body": ""}
+    if request.method not in ("GET","POST"): return err("Method not allowed.", 405, M)
+    body = parse_body(request); ip = get_client_ip(request)
+    ua   = (request.headers or {}).get("user-agent", "")
+    status, data = run_async(_run(get_token(request), body, request.method, ip, ua))
+    return {"statusCode": status, "headers": _headers(M), "body": json.dumps(data)}
  
