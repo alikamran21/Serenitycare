@@ -50,7 +50,7 @@ async def _run(token, body, method, ip, ua):
 
         r_doc = await db.execute(select(Doctor).where(Doctor.user_id == user.user_id))
         doc   = r_doc.scalar_one_or_none()
-       db.add(ClinicalNote(
+        db.add(ClinicalNote(
             note_id=uuid.uuid4(), mrn=mrn,
             doc_id=doc.doc_id if doc else None,
             notes_text=notes_text,

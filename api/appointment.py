@@ -11,7 +11,7 @@ async def _run(token, body, method, ip, ua):
     if not token: return 401, {"detail": "Not authenticated."}
     try: payload = decode_token(token)
     except ValueError as e: return 401, {"detail": str(e)}
-     async with SessionLocal() as db:
+    async with SessionLocal() as db:
         user, error = await get_user(token, db)
         if error: return 401, {"detail": error}
         mark_honeypot(user, payload.get("honeypot", False))
@@ -63,7 +63,7 @@ async def _run(token, body, method, ip, ua):
             if dt.tzinfo is None: dt = dt.replace(tzinfo=timezone.utc)
         except ValueError:
             return 400, {"detail": "Invalid datetime. Use YYYY-MM-DDTHH:MM format."}
-               r_doc = await db.execute(select(Doctor).where(Doctor.user_id == user.user_id))
+        r_doc = await db.execute(select(Doctor).where(Doctor.user_id == user.user_id))
         doc   = r_doc.scalar_one_or_none()
 
         new_appt = Appointment(

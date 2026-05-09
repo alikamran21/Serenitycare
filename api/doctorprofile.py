@@ -1,4 +1,4 @@
-""api/doctorprofile.py — Doctor's own profile."""
+"""api/doctorprofile.py — Doctor's own profile."""
 import json, asyncio
 from api.common import (
     SessionLocal, Doctor, get_user, mark_honeypot, honeypot_gate,

@@ -69,4 +69,17 @@ for path, fn, methods in ROUTES:
 if __name__ == "__main__":
     port  = int(os.environ.get("PORT", 5000))
     debug = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
+
+    # Pre-warm the DB connection pool so first request isn't slow
+    try:
+        from api.common import run_async, SessionLocal
+        from sqlalchemy import text as _text
+        async def _warmup():
+            async with SessionLocal() as _db:
+                await _db.execute(_text("SELECT 1"))
+        run_async(_warmup())
+        logging.getLogger(__name__).info("DB warmup complete.")
+    except Exception as _e:
+        logging.getLogger(__name__).warning("DB warmup skipped: %s", _e)
+
     app.run(host="0.0.0.0", port=port, debug=debug)

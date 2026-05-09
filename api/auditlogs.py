@@ -23,7 +23,7 @@ async def _run(token, kind, skip, limit):
                                       "created_at": a.created_at.isoformat() if a.created_at else None} for a in items]}
 
         if kind == "threats":
-           rows  = await db.execute(select(ThreatActor).order_by(ThreatActor.flagged_at.desc()).offset(skip).limit(limit))
+            rows  = await db.execute(select(ThreatActor).order_by(ThreatActor.flagged_at.desc()).offset(skip).limit(limit))
             items = rows.scalars().all()
             return 200, {"threats": [{"id": t.threat_id, "ip": str(t.ip_address) if t.ip_address else None,
                                        "reason": t.reason, "level": t.threat_level,
