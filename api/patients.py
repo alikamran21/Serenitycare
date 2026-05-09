@@ -49,3 +49,33 @@ async def _run(token, body, method, ip, ua):
                 )
                 next_appt = appt_query.scalar_one_or_none()
                 next_appt_str = next_appt.strftime("%b %d, %Y @ %I:%M %p") if next_appt else "Unscheduled"
+                
+                # 2. Count the total number of clinical notes (representing sessions)
+                note_query = await db.execute(
+                    select(func.count(ClinicalNote.note_id))
+                    .where(ClinicalNote.mrn == pat.mrn)
+                )
+                session_count = note_query.scalar_one()
+
+                patients.append({
+                    "mrn":              pat.mrn,
+                    "full_name":        pat.full_name,
+                    "diagnosis":        pat.primary_diagnosis,  
+                    "active_treatment": pat.active_treatment,
+                    "status":           pat.status,
+                    "doctor":           doc.full_name if doc else None,
+                    "doc_id":           pat.doc_id,
+                    "user_id":          str(pat.user_id),
+                    "next_appointment": next_appt_str,
+                    "sessions":         session_count
+                })
+            return 200, {"patients": patients}
+
+        # Write operations - doctor/admin only
+        if user.role not in ("doctor", "admin"):
+            return 403, {"detail": "Doctor or admin role required."}
+            
+        trap = await honeypot_gate(db, user, ip, ua, f"DOCTOR_{method}_PATIENT", "patients")
+        if trap:
+            return 200, {"detail": "Operation completed.", "mrn": "PT-SHADOW-FAKE"}
+
