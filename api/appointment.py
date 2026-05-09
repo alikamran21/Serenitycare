@@ -36,4 +36,32 @@ async def _run(token, body, method, ip, ua):
                 {"appt_id": str(a.appt_id), "scheduled_at": a.scheduled_at.isoformat() if a.scheduled_at else None,
                  "is_urgent": a.is_urgent, "status": a.status} for a in appts
             ]}
+                   # POST
+        action = str(body.get("action", "schedule")).lower()
+        mrn    = body.get("mrn")
+        if not mrn: return 400, {"detail": "mrn required."}
+
+        if trap:
+            return 200, {"detail": f"Appointment {action}d."}
+
+        if action == "cancel":
+            appt_id = body.get("appt_id")
+            if not appt_id: return 400, {"detail": "appt_id required to cancel."}
+            r    = await db.execute(select(Appointment).where(Appointment.appt_id == appt_id))
+            appt = r.scalar_one_or_none()
+            if not appt: return 404, {"detail": "Appointment not found."}
+            appt.status = "Cancelled"
+            await db.commit()
+            await log_forensic(db, "APPT_CANCEL", "appointments", json.dumps({"appt_id": appt_id}))
+            return 200, {"detail": "Appointment cancelled."}
+
+        # schedule
+        dt_str = str(body.get("scheduled_at", "")).strip()
+        if not dt_str: return 400, {"detail": "scheduled_at required."}
+        try:
+            dt = datetime.fromisoformat(dt_str.replace(" ", "T"))
+            if dt.tzinfo is None: dt = dt.replace(tzinfo=timezone.utc)
+        except ValueError:
+            return 400, {"detail": "Invalid datetime. Use YYYY-MM-DDTHH:MM format."}
+
 
