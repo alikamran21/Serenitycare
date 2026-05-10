@@ -15,6 +15,33 @@ from api.common import (
 
 log = logging.getLogger(__name__)
 
+
+async def _restore_shadow_vault(db):
+    """Wipe and re-seed shadow_vault.patients/notes/appointments so every
+    honeypot session starts with the original lure data."""
+    from sqlalchemy import text as _t
+    from api.common import SHADOW_PATIENTS
+    await db.execute(_t('DELETE FROM shadow_vault.appointments'))
+    await db.execute(_t('DELETE FROM shadow_vault.clinical_notes'))
+    await db.execute(_t('DELETE FROM shadow_vault.patients'))
+    for p in SHADOW_PATIENTS:
+        await db.execute(_t(
+            "INSERT INTO shadow_vault.patients "
+            "(mrn, user_id, doc_id, full_name, primary_diagnosis, active_treatment, status) "
+            "VALUES (:mrn, gen_random_uuid(), :doc_id, :name, :diag, :rx, :status) "
+            "ON CONFLICT (mrn) DO UPDATE SET "
+            "full_name=EXCLUDED.full_name, primary_diagnosis=EXCLUDED.primary_diagnosis, "
+            "active_treatment=EXCLUDED.active_treatment, status=EXCLUDED.status"
+        ), {
+            'mrn':    p['mrn'],
+            'doc_id': p.get('doc_id', 'DOC-001'),
+            'name':   p['full_name'],
+            'diag':   p['primary_diagnosis'],
+            'rx':     p['active_treatment'],
+            'status': p['status'],
+        })
+    await db.commit()
+
 async def _run(body, ip, ua):
     if not check_rate_limit(ip):
         return 429, {"detail": "Too many requests."}
@@ -86,7 +113,15 @@ async def _run(body, ip, ua):
             select(ThreatActor).where(ThreatActor.ip_address == cast(ip, INET)).limit(1)
         )
         is_trap = r3.scalar_one_or_none() is not None
-        
+
+        # On every honeypot login, restore shadow_vault to seed state so the
+        # attacker always starts fresh (previous-session changes disappear)
+        if is_trap:
+            try:
+                await _restore_shadow_vault(db)
+            except Exception as _re:
+                log.warning('shadow_vault restore failed: %s', _re)
+
         token = create_token(str(user.user_id), user.role, is_honeypot=is_trap)
         
         await log_forensic(db, "LOGIN_SUCCESS", "users",
