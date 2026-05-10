@@ -31,43 +31,55 @@ async def _run(token, body, method, ip, ua):
             trap = await honeypot_gate(db, user, ip, ua, "DOCTOR_LIST_PATIENTS", "patients")
             if trap:
                 return 200, {"patients": SHADOW_PATIENTS}
-                
+
             rows = await db.execute(
                 select(Patient, Doctor)
                 .join(Doctor, Patient.doc_id == Doctor.doc_id, isouter=True)
             )
             result = rows.all()
-            
+
+            if not result:
+                return 200, {"patients": []}
+
+            mrns = [pat.mrn for pat, _ in result]
+
+            # Bulk fetch: next upcoming appointment per patient (one query)
+            from sqlalchemy import case, literal_column
+            appt_subq = (
+                select(
+                    Appointment.mrn,
+                    func.min(Appointment.scheduled_at).label("next_at"),
+                )
+                .where(Appointment.mrn.in_(mrns), Appointment.status == "Scheduled")
+                .group_by(Appointment.mrn)
+                .subquery()
+            )
+            appt_rows = await db.execute(select(appt_subq))
+            appt_map = {r.mrn: r.next_at for r in appt_rows}
+
+            # Bulk fetch: note count per patient (one query)
+            note_rows = await db.execute(
+                select(ClinicalNote.mrn, func.count(ClinicalNote.note_id).label("cnt"))
+                .where(ClinicalNote.mrn.in_(mrns))
+                .group_by(ClinicalNote.mrn)
+            )
+            note_map = {r.mrn: r.cnt for r in note_rows}
+
             patients = []
             for pat, doc in result:
-                # 1. Fetch the closest upcoming scheduled appointment
-                appt_query = await db.execute(
-                    select(Appointment.scheduled_at)
-                    .where(Appointment.mrn == pat.mrn, Appointment.status == "Scheduled")
-                    .order_by(Appointment.scheduled_at.asc())
-                    .limit(1)
-                )
-                next_appt = appt_query.scalar_one_or_none()
-                next_appt_str = next_appt.strftime("%b %d, %Y @ %I:%M %p") if next_appt else "Unscheduled"
-                
-                # 2. Count the total number of clinical notes (representing sessions)
-                note_query = await db.execute(
-                    select(func.count(ClinicalNote.note_id))
-                    .where(ClinicalNote.mrn == pat.mrn)
-                )
-                session_count = note_query.scalar_one()
-
+                next_at = appt_map.get(pat.mrn)
+                next_appt_str = next_at.strftime("%b %d, %Y @ %I:%M %p") if next_at else "Unscheduled"
                 patients.append({
                     "mrn":              pat.mrn,
                     "full_name":        pat.full_name,
-                    "diagnosis":        pat.primary_diagnosis,  
+                    "diagnosis":        pat.primary_diagnosis,
                     "active_treatment": pat.active_treatment,
                     "status":           pat.status,
                     "doctor":           doc.full_name if doc else None,
                     "doc_id":           pat.doc_id,
                     "user_id":          str(pat.user_id),
                     "next_appointment": next_appt_str,
-                    "sessions":         session_count
+                    "sessions":         note_map.get(pat.mrn, 0),
                 })
             return 200, {"patients": patients}
 

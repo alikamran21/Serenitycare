@@ -1,5 +1,5 @@
 """api/tasks.py — Daily tasks for patients (GET list + POST mark done)."""
-import json, asyncio
+import json, asyncio, uuid as _uuid
 from datetime import datetime, timezone
 from api.common import (
     SessionLocal, User, Patient, DailyTask, log_forensic,
@@ -43,10 +43,14 @@ async def _run(token, body, method, ip, ua):
         if not task_ids: return 400, {"detail": "completed_task_ids required."}
 
         for tid in task_ids:
-            r2   = await db.execute(select(DailyTask).where(DailyTask.task_id == str(tid)))
+            try:
+                task_uuid = _uuid.UUID(str(tid))
+            except (ValueError, AttributeError):
+                continue  # Skip malformed IDs
+            r2   = await db.execute(select(DailyTask).where(DailyTask.task_id == task_uuid))
             task = r2.scalar_one_or_none()
             if task and task.mrn == pat.mrn:
-                task.is_done   = True
+                task.is_done    = True
                 task.updated_at = datetime.now(timezone.utc)
 
         await db.commit()

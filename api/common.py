@@ -82,19 +82,19 @@ def get_session_maker():
             poolclass=AsyncAdaptedQueuePool,
             connect_args={
                 **_db_connect_args,
-                "command_timeout": 10,
-                "prepared_statement_cache_size": 0,
-                "statement_cache_size": 0,
-                "timeout": 10,          # asyncpg connect timeout
+                "command_timeout": 30,
+                "prepared_statement_cache_size": 0,  # Required for PgBouncer/Neon pooler
+                "timeout": 30,          # asyncpg connect timeout (Neon cold starts can be slow)
                 "server_settings": {
-                    "statement_timeout": "8000",
+                    "statement_timeout": "25000",   # 25s — gives queries breathing room
+                    "application_name": "serenitycare",
                 },
             },
-            pool_size=5,
-            max_overflow=10,
-            pool_pre_ping=False,        # Disabled: saves a round-trip on every checkout
-            pool_recycle=300,           # 5 min recycle keeps Neon connections fresh
-            pool_timeout=15,
+            pool_size=3,
+            max_overflow=5,
+            pool_pre_ping=True,         # Recycle stale Neon connections before use
+            pool_recycle=180,           # 3 min recycle — Neon idle connections drop at 5 min
+            pool_timeout=35,
             echo=False,
         )
         _sessionmaker = async_sessionmaker(
@@ -486,4 +486,4 @@ def run_async(coro):
     """Run a coroutine on the shared event loop from a sync Flask handler."""
     loop = _get_loop()
     future = asyncio.run_coroutine_threadsafe(coro, loop)
-    return future.result(timeout=30)  # 30 s hard timeout
+    return future.result(timeout=60)  # 60 s — allows for Neon cold-start wake-up

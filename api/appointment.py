@@ -36,7 +36,10 @@ async def _run(token, body, method, ip, ua):
                 {"appt_id": str(a.appt_id), "scheduled_at": a.scheduled_at.isoformat() if a.scheduled_at else None,
                  "is_urgent": a.is_urgent, "status": a.status} for a in appts
             ]}
-                   # POST
+
+        # POST
+        if method != "POST":
+            return 405, {"detail": "Method not allowed."}
         action = str(body.get("action", "schedule")).lower()
         mrn    = body.get("mrn")
         if not mrn: return 400, {"detail": "mrn required."}

