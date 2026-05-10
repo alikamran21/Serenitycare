@@ -33,10 +33,22 @@ async def _run(token, body, method, ip, ua):
             if trap:
                 return 200, {"patients": SHADOW_PATIENTS}
 
-            rows = await db.execute(
+            # Resolve the calling doctor's doc_id so we only return their patients
+            doctor_doc_id = None
+            if user.role == "doctor":
+                r_doc = await db.execute(select(Doctor).where(Doctor.user_id == user.user_id))
+                doc_rec = r_doc.scalar_one_or_none()
+                doctor_doc_id = doc_rec.doc_id if doc_rec else None
+
+            # Build query — doctors see only their own patients; admins see all
+            base_query = (
                 select(Patient, Doctor)
                 .join(Doctor, Patient.doc_id == Doctor.doc_id, isouter=True)
             )
+            if user.role == "doctor" and doctor_doc_id:
+                base_query = base_query.where(Patient.doc_id == doctor_doc_id)
+
+            rows = await db.execute(base_query)
             result = rows.all()
 
             if not result:

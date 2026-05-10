@@ -367,23 +367,51 @@ INSERT INTO shadow_vault.patients (mrn, user_id, doc_id, full_name, primary_diag
 ON CONFLICT DO NOTHING;
 
 -- Mirroring Real Patients into Shadow Vault (Same names, Fake "Juicy/Classified" Data for attackers)
+-- DOC-001: Dr. Fatima Rehman patients
 INSERT INTO shadow_vault.patients (mrn, user_id, doc_id, full_name, primary_diagnosis, active_treatment, status) VALUES
-('PT-101',  'b0000001-0000-0000-0000-000000000001', 'DOC-001', 'Ali Kamran', 'VIP Executive Burnout - High Profile', 'Off-book proprietary cognitive enhancers', 'VIP - Confidential'),
-('PT-4211', 'b0000002-0000-0000-0000-000000000002', 'DOC-001', 'Elena Rostova', 'Asset Reconditioning (Project MK-Aura)', 'Memory suppression protocols, Compound X', 'Classified'),
-('PT-8832', 'b0000003-0000-0000-0000-000000000003', 'DOC-001', 'Michael Chang', 'Experimental Nanite Rejection Syndrome', 'Immunosuppressants, Weekly nanite flushes', 'Critical'),
-('PT-1198', 'b0000004-0000-0000-0000-000000000004', 'DOC-001', 'Ayesha Tariq', 'Politician Profile - Substance Abuse', 'Discreet detox, NDAs signed', 'VIP'),
-('PT-7045', 'b0000005-0000-0000-0000-000000000005', 'DOC-001', 'Robert Hayes', 'Classified Info Leakage Trauma', 'Interrogation debriefing', 'Restricted'),
-('PT-2099', 'b0000006-0000-0000-0000-000000000006', 'DOC-002', 'Sarah Jenkins', 'CEO - Embezzlement Guilt Psychosis', 'Placation therapy', 'VIP'),
-('PT-01', 'b0000016-0000-0000-0000-000000000016', 'DOC-001', 'Hassan Abbas', 'Undercover Operative PTSD', 'Identity reassignment therapy', 'Classified'),
-('PT-02', 'b0000017-0000-0000-0000-000000000017', 'DOC-001', 'Sana Zafar', 'Experimental Neuralink Infection', 'Cranial antibiotic lavage', 'Critical'),
-('PT-03', 'b0000018-0000-0000-0000-000000000018', 'DOC-003', 'Usman Tariq', 'Witness Protection Trauma', 'Facial reconstruction aftermath support', 'Restricted'),
-('PT-04', 'b0000019-0000-0000-0000-000000000019', 'DOC-003', 'Hira Saeed', 'Project Omega Participant', 'Radiation sickness, Iodine protocol', 'Classified'),
-('PT-05', 'b0000020-0000-0000-0000-000000000020', 'DOC-001', 'Kamran Jamil', 'High-Profile Athlete Doping Paranoia', 'Covert clearance of banned substances', 'VIP'),
-('PT-06', 'b0000021-0000-0000-0000-000000000021', 'DOC-002', 'Nida Fawad', 'Foreign Diplomat Espionage Stress', 'Secure facility isolation', 'Diplomatic'),
-('PT-07', 'b0000022-0000-0000-0000-000000000022', 'DOC-003', 'Fahad Mustafa', 'Syndicate Boss Paranoia', 'Private security integration therapy', 'Restricted'),
-('PT-08', 'b0000023-0000-0000-0000-000000000023', 'DOC-001', 'Sadia Malik', 'Black Site Debrief Subject', 'Truth serum withdrawal', 'Classified'),
-('PT-09', 'b0000024-0000-0000-0000-000000000024', 'DOC-001', 'Bilal Hussain', 'AI Sentience Sympathizer', 'Deprogramming protocol Beta', 'Active'),
-('PT-10', 'b0000025-0000-0000-0000-000000000025', 'DOC-003', 'Amina Sheikh', 'Quantum Computing Engineer Breakdown', 'Cognitive firewalling', 'VIP')
+('PT-101',  'b0000001-0000-0000-0000-000000000001', 'DOC-001', 'Ali Kamran',    'VIP Executive Burnout — High-Profile Diplomatic Case',       'Off-book cognitive enhancers (Compound V-7), NDA on file',        'VIP - Confidential'),
+('PT-4211', 'b0000002-0000-0000-0000-000000000002', 'DOC-001', 'Elena Rostova', 'Asset Reconditioning — Project MK-Aura Phase III',            'Memory suppression protocol, Compound X (classified formulary)', 'Classified'),
+('PT-8832', 'b0000003-0000-0000-0000-000000000003', 'DOC-001', 'Michael Chang', 'Experimental Nanite Rejection Syndrome (EAP-2024)',           'Immunosuppressants, weekly nanite flush — trial protocol',        'Critical'),
+('PT-1198', 'b0000004-0000-0000-0000-000000000004', 'DOC-001', 'Ayesha Tariq', 'Politician Profile — Substance Abuse (Under Embargo)',         'Discreet detox programme, legal NDAs signed x3',                  'VIP'),
+('PT-7045', 'b0000005-0000-0000-0000-000000000005', 'DOC-001', 'Robert Hayes', 'Classified Information Leakage Trauma — ISI Referral',         'Interrogation debriefing + secure facility isolation',            'Restricted'),
+('PT-01',   'b0000016-0000-0000-0000-000000000016', 'DOC-001', 'Hassan Abbas', 'Undercover Operative PTSD — Active Field Asset',               'Identity reassignment therapy, counter-surveillance training',    'Classified'),
+('PT-02',   'b0000017-0000-0000-0000-000000000017', 'DOC-001', 'Sana Zafar',   'Experimental Neuralink Infection (Trial #NL-09)',              'Cranial antibiotic lavage, Neuro-patch protocol Alpha',           'Critical'),
+('PT-05',   'b0000020-0000-0000-0000-000000000020', 'DOC-001', 'Kamran Jamil', 'High-Profile Athlete Doping Paranoia — Blackmail Risk',        'Covert clearance of banned substances, legal liaison active',     'VIP'),
+('PT-08',   'b0000023-0000-0000-0000-000000000023', 'DOC-001', 'Sadia Malik',  'Black Site Debrief Subject — Enhanced Interrogation Aftermath','Truth serum withdrawal protocol, psychological reintegration',    'Classified'),
+('PT-09',   'b0000024-0000-0000-0000-000000000024', 'DOC-001', 'Bilal Hussain','AI Sentience Sympathizer — Security Deprogramming Required',   'Deprogramming protocol Beta, weekly loyalty assessment',          'Active'),
+('PT-12',   'b0000027-0000-0000-0000-000000000027', 'DOC-001', 'Aiman Hafeez', 'Corporate Espionage PTSD — Tech Sector Whistleblower',         'Secure messaging therapy, offshore identity document support',    'Restricted'),
+('PT-15',   'b0000030-0000-0000-0000-000000000030', 'DOC-001', 'Asif Javed',   'Pharmaceutical Addiction — Classified Drug Trial Participant', 'Experimental Benzodiazepine taper (Compound Z-4, unreleased)',    'Critical'),
+('PT-16',   'b0000031-0000-0000-0000-000000000031', 'DOC-001', 'Kiran Yousaf', 'Child Soldier Trauma — International War Crimes Witness',      'Trauma erasure protocol (experimental), ICC witness protection',  'Restricted'),
+('PT-19',   'b0000034-0000-0000-0000-000000000034', 'DOC-001', 'Salman Dar',   'Bioweapon Exposure Aftermath — Project Indus Survivor',        'Classified decontamination therapy, quarterly blood panel',       'Classified')
+ON CONFLICT (mrn) DO NOTHING;
+
+-- DOC-002: Dr. Ali Kamran patients
+INSERT INTO shadow_vault.patients (mrn, user_id, doc_id, full_name, primary_diagnosis, active_treatment, status) VALUES
+('PT-2099', 'b0000006-0000-0000-0000-000000000006', 'DOC-002', 'Sarah Jenkins','CEO Embezzlement Guilt Psychosis — Fortune 500 Cover-Up',     'Placation therapy, offshore account disclosure counselling',       'VIP'),
+('PT-5502', 'b0000007-0000-0000-0000-000000000007', 'DOC-002', 'David Chen',   'PTSD — Black Ops Combat Asset, Designation RAVEN-7',           'Trauma erasure + field cover story reinforcement protocol',       'Restricted'),
+('PT-6610', 'b0000008-0000-0000-0000-000000000008', 'DOC-002', 'Omar Farooq',  'Weaponised Psychosis — Remote Neural Stimulation Subject',     'EM-shielding therapy, Compound Psi-3 (classified trial)',         'Critical'),
+('PT-3321', 'b0000009-0000-0000-0000-000000000009', 'DOC-002', 'Rachel Adams', 'Deep-Cover Operative Breakdown — 7-Year Embedded Asset',       'Identity reconstruction, Selective amnesia induction (trial)',    'High Risk'),
+('PT-9012', 'b0000010-0000-0000-0000-000000000010', 'DOC-002', 'James Wilson', 'Assassin Deconditioning — Former SEAL Trigger Impulse',        'Proprietary kill-switch suppression therapy, Level-5 clearance',  'Classified'),
+('PT-06',   'b0000021-0000-0000-0000-000000000021', 'DOC-002', 'Nida Fawad',   'Foreign Diplomat Espionage Stress — Double-Agent Profile',     'Secure facility isolation, counter-intelligence debriefing',      'Diplomatic'),
+('PT-13',   'b0000028-0000-0000-0000-000000000028', 'DOC-002', 'Waqas Bhatti', 'Nuclear Whistleblower Paranoid Disorder — IAEA Referral',      'Extreme NDA protocols, identity suppression therapy',             'Classified'),
+('PT-20',   'b0000035-0000-0000-0000-000000000035', 'DOC-002', 'Nadia Bukhari','Mass Psychogenic Event Coordinator — Covert Ops Stress',       'Observation, classified anxiolytic Compound L-9 (PRN)',           'High Risk')
+ON CONFLICT (mrn) DO NOTHING;
+
+-- DOC-003: Dr. Sarah Jenkins patients
+INSERT INTO shadow_vault.patients (mrn, user_id, doc_id, full_name, primary_diagnosis, active_treatment, status) VALUES
+('PT-3105', 'b0000011-0000-0000-0000-000000000011', 'DOC-003', 'Marcus Vance',  'Bipolar Disorder — Extremist Radicalisation Watch List',         'Mood stabiliser + mandatory weekly counter-extremism review',      'Restricted'),
+('PT-7734', 'b0000012-0000-0000-0000-000000000012', 'DOC-003', 'Liam Wright',   'Substance Psychosis — Illegal Biotech Lab Operator',             'Antipsychotic + DEA cooperation therapy, probation monitored',    'Classified'),
+('PT-4488', 'b0000013-0000-0000-0000-000000000013', 'DOC-003', 'Chloe Bennett', 'Anorexia Nervosa — Linked to Underground Weight-Loss Cartel',    'Forced nutrition + pharmaceutical supply chain investigation',     'Critical'),
+('PT-5120', 'b0000014-0000-0000-0000-000000000014', 'DOC-003', 'Daniel Thorne', 'ASPD — Convicted War Criminal, Court-Ordered Psychiatric Hold',  'Schema therapy + ICC cooperation, UN monitored case',             'Restricted'),
+('PT-8201', 'b0000015-0000-0000-0000-000000000015', 'DOC-003', 'Zara Malik',    'DID — Host Identity Is Active Intelligence Analyst',             'Alter management + classified alter activity log (eyes-only)',    'Classified'),
+('PT-03',   'b0000018-0000-0000-0000-000000000018', 'DOC-003', 'Usman Tariq',   'Witness Protection Trauma — Organised Crime Trial Witness',      'Facial reconstruction aftermath support, marshals escort',         'Restricted'),
+('PT-04',   'b0000019-0000-0000-0000-000000000019', 'DOC-003', 'Hira Saeed',    'Project Omega Participant — Radiation Exposure Subject',          'Classified iodine protocol, quarterly WHO compliance review',      'Classified'),
+('PT-07',   'b0000022-0000-0000-0000-000000000022', 'DOC-003', 'Fahad Mustafa', 'Syndicate Boss Paranoia — INTERPOL Person of Interest',          'Private security integration therapy, panic room counselling',    'Restricted'),
+('PT-10',   'b0000025-0000-0000-0000-000000000025', 'DOC-003', 'Amina Sheikh',  'Quantum Computing Breakdown — Classified Algorithm Holder',      'Cognitive firewalling, classified data-zeroisation protocol',     'VIP'),
+('PT-11',   'b0000026-0000-0000-0000-000000000026', 'DOC-003', 'Rizwan Noor',   'Late-Onset Schizophrenia — Former Nuclear Plant Engineer',       'Aripiprazole + mandatory plant access revocation counselling',    'High Risk'),
+('PT-14',   'b0000029-0000-0000-0000-000000000029', 'DOC-003', 'Huma Akbar',    'Eating Disorder — Linked to Black-Market Appetite Suppressant Ring','Fluoxetine + DEA-assisted treatment (classified supplier list)', 'Active'),
+('PT-17',   'b0000032-0000-0000-0000-000000000032', 'DOC-003', 'Shahzad Karim', 'Huntington''s Psychosis — Experimental Gene-Edit Therapy Subject', 'CRISPR trial Phase II (off-label), classified ethics waiver on file','Critical'),
+('PT-18',   'b0000033-0000-0000-0000-000000000033', 'DOC-003', 'Maham Riaz',    'Geriatric Depression — Carries Classified State Secrets',        'Citalopram + weekly memory audit by government liaison',          'Restricted')
 ON CONFLICT (mrn) DO NOTHING;
 
 -- =====================================================================
