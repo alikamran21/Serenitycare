@@ -6,20 +6,32 @@ services:
       dockerfile: Dockerfile
     container_name: phantasm_backend
     restart: unless-stopped
-    env_file: .env
     environment:
       - FLASK_DEBUG=false
       - PORT=5000
+      - DATABASE_URL=postgresql://neondb_owner:npg_C3qZMutK6cfP@ep-odd-tree-aoioc6we-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require
+      - JWT_SECRET_KEY=ec3d8391b5f105fb6efa9536169473ae3447b1c2fbe2e82ca50612c6d030c5ac8ef899a5db057f3433a5ec91a7139b7b42a63c1f46d34cf2038c2a26b97efbc0
+      - JWT_ALGORITHM=HS256
+      - JWT_ACCESS_TOKEN_EXPIRE_MINUTES=60
+      - OTP_EXPIRE_MINUTES=5
+      - RESEND_API_KEY=re_TXfwbaxV_Amyjv5b3ByrHgZEyKBGh4ZcV
+      - RESEND_FROM=onboarding@resend.dev
+      - SMTP_FROM_NAME=Serenity Psychiatric Care
+      - TEST_EMAIL_OVERRIDE=alikamran1223@gmail.com
+      - RATE_LIMIT_REQUESTS=30
+      - RATE_LIMIT_WINDOW_SECONDS=60
+      - MAX_FAILED_LOGINS=5
+      - ALLOWED_ORIGINS=*
     expose:
       - "5000"
     networks:
       - phantasm_net
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health', timeout=10)"]
-      interval: 20s
-      timeout: 12s
-      retries: 6
-      start_period: 40s
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5000/api/health', timeout=15)"]
+      interval: 30s
+      timeout: 20s
+      retries: 5
+      start_period: 60s
 
   webserver:
     image: nginx:1.27-alpine

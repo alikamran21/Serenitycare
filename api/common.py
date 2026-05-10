@@ -51,21 +51,23 @@ MAX_FAILED_LOGINS = int(os.environ.get("MAX_FAILED_LOGINS", 5))
 def _build_db_url():
     raw = os.environ.get("DATABASE_URL", "")
     if not raw:
-        raise RuntimeError("DATABASE_URL is not set")
+        raise RuntimeError("DATABASE_URL is not set — check docker-compose.yml environment section")
     parsed = urlparse(raw)
     qp     = parse_qs(parsed.query, keep_blank_values=True)
-    ssl_ok = qp.pop("sslmode", ["disable"])[0] in ("require","verify-ca","verify-full")
-    qp.pop("channel_binding", None)
+    sslmode = qp.pop("sslmode", ["disable"])[0]
+    qp.pop("channel_binding", None)  # asyncpg does not support this param
+    # Rebuild clean URL with no leftover query params that asyncpg can't handle
     url = urlunparse((
         "postgresql+asyncpg", parsed.netloc, parsed.path, parsed.params,
         urlencode({k: v[0] for k, v in qp.items()}), parsed.fragment,
     ))
+    # Use ssl="require" STRING — not an ssl context object.
+    # Neon's pgbouncer pooler rejects full ssl context handshakes; the string
+    # form tells asyncpg to use SSL without strict cert verification, which
+    # is correct for a managed cloud DB behind a proxy.
     connect_args = {}
-    if ssl_ok:
-        ctx = ssl.create_default_context()
-        ctx.check_hostname = False
-        ctx.verify_mode = ssl.CERT_REQUIRED
-        connect_args["ssl"] = ctx
+    if sslmode in ("require", "verify-ca", "verify-full"):
+        connect_args["ssl"] = "require"
     return url, connect_args
 
 _db_url, _db_connect_args = _build_db_url()
