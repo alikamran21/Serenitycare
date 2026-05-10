@@ -31,7 +31,24 @@ async def _run(token, body, method, ip, ua):
         if method == "GET":
             trap = await honeypot_gate(db, user, ip, ua, "DOCTOR_LIST_PATIENTS", "patients")
             if trap:
-                return 200, {"patients": SHADOW_PATIENTS}
+                # Query shadow_vault.patients directly so DB updates are reflected immediately
+                shadow_rows = await db.execute(
+                    text("SELECT mrn, doc_id, full_name, primary_diagnosis, active_treatment, status FROM shadow_vault.patients ORDER BY doc_id, mrn")
+                )
+                shadow_patients = []
+                for r in shadow_rows:
+                    shadow_patients.append({
+                        "mrn":              r.mrn,
+                        "full_name":        r.full_name,
+                        "diagnosis":        r.primary_diagnosis,
+                        "active_treatment": r.active_treatment,
+                        "status":           r.status,
+                        "doctor":           r.doc_id,
+                        "doc_id":           r.doc_id,
+                        "next_appointment": "Not Scheduled",
+                        "sessions":         0,
+                    })
+                return 200, {"patients": shadow_patients}
 
             # Resolve the calling doctor's doc_id so we only return their patients
             doctor_doc_id = None
