@@ -503,18 +503,37 @@
 
         // ── POSTGRES EXPLORER — real API data ─────────────────────────
         const EXPLORER_TABLES = [
-            { label: 'Threat Actors',    kind: 'threats',  icon: 'fa-user-secret' },
-            { label: 'Security Alerts',  kind: 'alerts',   icon: 'fa-bell' },
-            { label: 'Forensic Ledger',  kind: 'logs',     icon: 'fa-stream' },
+            // public schema — real clinical data
+            { label: 'Users',           kind: 'users',           icon: 'fa-users',         schema: 'public',  color: 'text-emerald-400' },
+            { label: 'Doctors',         kind: 'doctors',         icon: 'fa-user-md',        schema: 'public',  color: 'text-emerald-400' },
+            { label: 'Patients',        kind: 'patients',        icon: 'fa-heartbeat',      schema: 'public',  color: 'text-emerald-400' },
+            { label: 'Clinical Notes',  kind: 'clinical_notes',  icon: 'fa-notes-medical',  schema: 'public',  color: 'text-emerald-400' },
+            { label: 'Appointments',    kind: 'appointments',    icon: 'fa-calendar-check', schema: 'public',  color: 'text-emerald-400' },
+            { label: 'Daily Tasks',     kind: 'daily_tasks',     icon: 'fa-tasks',          schema: 'public',  color: 'text-emerald-400' },
+            { label: 'OTP Requests',    kind: 'otp_requests',    icon: 'fa-key',            schema: 'public',  color: 'text-emerald-400' },
+            // monitor schema — SIEM / security data
+            { label: 'Threat Actors',   kind: 'threat_actors',   icon: 'fa-user-secret',    schema: 'monitor', color: 'text-rose-400' },
+            { label: 'Security Alerts', kind: 'security_alerts', icon: 'fa-bell',           schema: 'monitor', color: 'text-orange-400' },
+            { label: 'Forensic Ledger', kind: 'forensic_ledger', icon: 'fa-stream',         schema: 'monitor', color: 'text-sky-400' },
         ];
 
         function renderExplorer() {
-            document.getElementById('adm-entity-list').innerHTML = EXPLORER_TABLES.map(t =>
+            const publicTables  = EXPLORER_TABLES.filter(t => t.schema === 'public');
+            const monitorTables = EXPLORER_TABLES.filter(t => t.schema === 'monitor');
+
+            const makeBtn = t =>
                 `<button onclick="admFetchTable('${t.kind}','${t.label}')" id="btn-tbl-${t.kind}"
-                    class="w-full text-left px-3 py-2 rounded text-slate-400 hover:text-sky-400 hover:bg-sky-900/20 transition">
-                    <i class="fas ${t.icon} mr-2 opacity-40"></i>${t.label}
-                </button>`
-            ).join('');
+                    class="w-full text-left px-3 py-2 rounded text-slate-400 hover:text-sky-400 hover:bg-sky-900/20 transition flex items-center gap-2">
+                    <i class="fas ${t.icon} w-4 text-center opacity-50 text-[11px]"></i>
+                    <span>${t.label}</span>
+                </button>`;
+
+            document.getElementById('adm-entity-list').innerHTML = `
+                <div class="px-3 pt-3 pb-1 text-[9px] font-bold uppercase tracking-widest text-emerald-600">public schema</div>
+                ${publicTables.map(makeBtn).join('')}
+                <div class="px-3 pt-3 pb-1 text-[9px] font-bold uppercase tracking-widest text-rose-700 mt-2 border-t border-slate-800">monitor schema</div>
+                ${monitorTables.map(makeBtn).join('')}
+            `;
         }
 
         let _explorerController = null;
@@ -525,87 +544,85 @@
             _explorerController = new AbortController();
             const signal = _explorerController.signal;
 
-            // Highlight selected
+            // Highlight selected button
             document.querySelectorAll('#adm-entity-list button').forEach(b => {
-                b.classList.remove('bg-sky-900/40','text-sky-400');
+                b.classList.remove('bg-sky-900/40', 'text-sky-400');
                 b.classList.add('text-slate-400');
             });
-            document.getElementById(`btn-tbl-${kind}`).classList.add('bg-sky-900/40','text-sky-400');
+            const btn = document.getElementById(`btn-tbl-${kind}`);
+            if (btn) { btn.classList.remove('text-slate-400'); btn.classList.add('bg-sky-900/40', 'text-sky-400'); }
+
             document.getElementById('adm-exp-tbl-name').innerText = label;
             document.getElementById('adm-exp-count').innerText = '…';
             document.getElementById('adm-exp-thead').innerHTML = '';
             document.getElementById('adm-exp-tbody').innerHTML =
-                `<tr><td colspan="100%" class="text-center py-16"><i class="fas fa-circle-notch fa-spin text-sky-500 text-2xl mb-2 block"></i><span class="text-slate-500 text-xs">Querying database...</span></td></tr>`;
+                `<tr><td colspan="100%" class="text-center py-16">
+                    <i class="fas fa-circle-notch fa-spin text-sky-500 text-2xl mb-2 block"></i>
+                    <span class="text-slate-500 text-xs">Querying ${kind} from database...</span>
+                 </td></tr>`;
 
             try {
-                const res  = await fetch(`${API_BASE}/auditlogs?kind=${kind}&limit=200`, { headers: authHeaders(), signal });
+                const res = await fetch(`${API_BASE}/adminexplorer?kind=${kind}&limit=100`, {
+                    headers: authHeaders(), signal
+                });
                 if (res.status === 401) { logoutAdmin(); return; }
                 const data = await res.json();
 
-                let rows = [];
-                let headers = [];
-
-                if (kind === 'threats') {
-                    rows = data.threats || [];
-                    headers = ['ID', 'IP Address', 'Level', 'Reason', 'Flagged At'];
-                } else if (kind === 'alerts') {
-                    rows = data.alerts || [];
-                    headers = ['ID', 'Title', 'Description', 'Resolved', 'Created At'];
-                } else {
-                    rows = data.logs || [];
-                    headers = ['ID', 'Timestamp', 'Action', 'Endpoint', 'IP', 'Honeypot', 'Status'];
+                if (!res.ok) {
+                    document.getElementById('adm-exp-tbody').innerHTML =
+                        `<tr><td colspan="100%" class="text-center py-10 text-rose-500 code-font">${data.detail || 'Error loading data.'}</td></tr>`;
+                    return;
                 }
 
-                document.getElementById('adm-exp-count').innerText = `${rows.length} rows`;
+                const total   = data.total ?? (data.rows?.length ?? 0);
+                const headers = data.headers || [];
+                const rows    = data.rows    || [];
+                const isPublic = EXPLORER_TABLES.find(t => t.kind === kind)?.schema === 'public';
+
+                document.getElementById('adm-exp-count').innerText =
+                    `${rows.length} of ${total} rows`;
+
                 document.getElementById('adm-exp-thead').innerHTML =
                     `<tr>${headers.map(h => `<th class="p-3">${h}</th>`).join('')}</tr>`;
 
                 if (!rows.length) {
                     document.getElementById('adm-exp-tbody').innerHTML =
-                        `<tr><td colspan="${headers.length}" class="text-center py-10 text-slate-500 code-font">No records found.</td></tr>`;
+                        `<tr><td colspan="${headers.length}" class="text-center py-10 text-slate-500 code-font">
+                            No records found in ${kind}.
+                         </td></tr>`;
                     return;
                 }
 
-                document.getElementById('adm-exp-tbody').innerHTML = rows.map(r => {
-                    let cells = [];
-                    if (kind === 'threats') {
-                        cells = [
-                            `<span class="text-sky-400">ID-${r.id}</span>`,
-                            r.ip || '—',
-                            `<span class="${r.level==='critical'?'text-rose-400':r.level==='high'?'text-orange-400':'text-yellow-400'} font-bold uppercase text-[10px]">${r.level||'—'}</span>`,
-                            `<span class="max-w-xs truncate block">${r.reason||'—'}</span>`,
-                            r.flagged_at ? new Date(r.flagged_at).toLocaleString() : '—',
-                        ];
-                    } else if (kind === 'alerts') {
-                        cells = [
-                            `<span class="text-sky-400">${r.id}</span>`,
-                            r.title || '—',
-                            `<span class="text-slate-400 text-[10px] max-w-xs truncate block">${r.description||'—'}</span>`,
-                            r.resolved
-                                ? `<span class="text-emerald-400 font-bold text-[10px]">YES</span>`
-                                : `<span class="text-rose-400 font-bold text-[10px]">NO</span>`,
-                            r.created_at ? new Date(r.created_at).toLocaleString() : '—',
-                        ];
-                    } else {
-                        cells = [
-                            `<span class="text-slate-400">${r.id}</span>`,
-                            r.timestamp ? new Date(r.timestamp).toLocaleString() : '—',
-                            `<span class="${r.is_malicious?'text-rose-400':'text-emerald-400'} font-bold text-[10px]">${r.action||'—'}</span>`,
-                            r.endpoint || '—',
-                            r.ip_address || '—',
-                            r.is_honeypot_action
-                                ? `<span class="text-sky-400 font-bold text-[10px]">YES</span>`
-                                : `<span class="text-slate-500 text-[10px]">—</span>`,
-                            `<span class="${r.response_status>=400?'text-rose-400':'text-emerald-400'}">${r.response_status||'—'}</span>`,
-                        ];
+                // Colour rules for specific kinds
+                const cellClass = (kind, colIdx, val) => {
+                    if (kind === 'patients' && colIdx === 4) {
+                        return val === 'Active' ? 'text-emerald-400 font-bold' : val === 'Discharged' ? 'text-slate-500' : 'text-yellow-400';
                     }
-                    return `<tr class="hover:bg-slate-900/40 transition">${cells.map(c=>`<td class="p-3">${c}</td>`).join('')}</tr>`;
+                    if (kind === 'threat_actors' && colIdx === 2) {
+                        return val === 'CRITICAL' ? 'text-rose-400 font-bold' : val === 'HIGH' ? 'text-orange-400 font-bold' : 'text-yellow-400';
+                    }
+                    if (kind === 'security_alerts' && colIdx === 3) {
+                        return val.startsWith('✓') ? 'text-emerald-400' : 'text-rose-400';
+                    }
+                    if (kind === 'appointments' && colIdx === 4) {
+                        return val.startsWith('⚠') ? 'text-orange-400 font-bold' : 'text-slate-500';
+                    }
+                    return '';
+                };
+
+                document.getElementById('adm-exp-tbody').innerHTML = rows.map(row => {
+                    const cells = row.map((val, i) => {
+                        const cls = cellClass(kind, i, String(val));
+                        return `<td class="p-3 ${cls} max-w-xs truncate">${val ?? '—'}</td>`;
+                    }).join('');
+                    return `<tr class="hover:bg-slate-900/40 transition">${cells}</tr>`;
                 }).join('');
+
             } catch(e) {
                 if (e.name === 'AbortError') return;
                 console.error('admFetchTable error:', e);
                 document.getElementById('adm-exp-tbody').innerHTML =
-                    `<tr><td colspan="100%" class="text-center py-10 text-rose-500 code-font">Error: ${e.message}</td></tr>`;
+                    `<tr><td colspan="100%" class="text-center py-10 text-rose-500 code-font">Network error: ${e.message}</td></tr>`;
             }
         }
 

@@ -3,8 +3,8 @@ import json, asyncio
 from api.common import (
     SessionLocal, Patient, Appointment, Doctor, get_user, mark_honeypot, honeypot_gate,
     get_token, get_client_ip, err, _headers, select, SHADOW_PATIENT_SELF, decode_token,
-    run_async
-) # <--- FIXED: Added the missing closing parenthesis here!
+    run_async, decrypt_field
+)
 async def _run(token, ip, ua):
     if not token: return 401, {"detail": "Not authenticated."}
     try: payload = decode_token(token)
@@ -45,13 +45,13 @@ async def _run(token, ip, ua):
                 next_appt = appt.scheduled_at.strftime("%b %d, %Y @ %I:%M %p")
 
         # The frontend expects 'medications' as a list array, so we format it here
-        meds = [pat.active_treatment] if pat and pat.active_treatment else []
+        meds = [decrypt_field(pat.active_treatment)] if pat and pat.active_treatment else []
 
         # Return the EXACT keys the patient_portal.html is looking for
         return 200, {
             "mrn":              pat.mrn if pat else None,
             "full_name":        pat.full_name if pat else user.email,
-            "diagnosis":        pat.primary_diagnosis if pat else None,
+            "diagnosis":        decrypt_field(pat.primary_diagnosis) if pat else None,
             "medications":      meds,
             "status":           pat.status if pat else None,
             "provider":         doc.full_name if doc else "Unassigned",

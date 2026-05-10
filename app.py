@@ -24,6 +24,7 @@ from api.tasks         import handler as tasks_handler
 from api.doctorprofile import handler as doctorprofile_handler
 from api.patientprofile import handler as patientprofile_handler
 from api.auditlogs     import handler as auditlogs_handler
+from api.adminexplorer import handler as adminexplorer_handler
 from api.ping          import handler as ping_handler
 
 app = Flask(__name__)
@@ -58,6 +59,7 @@ ROUTES = [
     ("/api/doctorprofile",   doctorprofile_handler,  ["GET",  "OPTIONS"]),
     ("/api/patientprofile",  patientprofile_handler, ["GET",  "OPTIONS"]),
     ("/api/auditlogs",       auditlogs_handler,      ["GET",  "OPTIONS"]),
+    ("/api/adminexplorer",   adminexplorer_handler,  ["GET",  "OPTIONS"]),
     ("/api/ping",            ping_handler,           ["GET",  "OPTIONS"]),
 ]
 
