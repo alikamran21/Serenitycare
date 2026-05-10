@@ -20,12 +20,16 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-            cd ~/Serenitycare
-
+            # Go to the exact folder on your Ubuntu server
+            cd ~/Repo/Serenitycare
+            
+            # Discard any local changes and pull the latest code
             git reset --hard HEAD
             git pull origin main
-
-            sudo docker-compose down
-            sudo docker-compose up -d --build
-
+            
+            # Rebuild and restart the Docker containers (without the hyphen!)
+            sudo docker compose down
+            sudo docker compose up -d --build
+            
+            # Clean up old Docker images to save space
             sudo docker image prune -f
