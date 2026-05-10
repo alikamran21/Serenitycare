@@ -4,7 +4,8 @@ from datetime import datetime, timezone
 from api.common import (
     SessionLocal, User, Patient, Doctor, ClinicalNote, log_forensic,
     get_user, mark_honeypot, honeypot_gate, parse_body, get_token, get_client_ip,
-    err, _headers, select, SHADOW_PATIENTS, decode_token, run_async
+    err, _headers, select, SHADOW_PATIENTS, decode_token, run_async,
+    encrypt_field, decrypt_field
 )
 
 async def _run(token, body, method, ip, ua):
@@ -32,7 +33,7 @@ async def _run(token, body, method, ip, ua):
                 .order_by(ClinicalNote.created_at.desc())
             )
             notes = rows.scalars().all()
-            return 200, {"notes": [{"note_id": str(n.note_id), "notes_text": n.notes_text,
+            return 200, {"notes": [{"note_id": str(n.note_id), "notes_text": decrypt_field(n.notes_text),
                                     "doc_id": n.doc_id,
                                     "created_at": n.created_at.isoformat() if n.created_at else None}
                                    for n in notes]}
@@ -53,7 +54,7 @@ async def _run(token, body, method, ip, ua):
         db.add(ClinicalNote(
             note_id=uuid.uuid4(), mrn=mrn,
             doc_id=doc.doc_id if doc else None,
-            notes_text=notes_text,
+            notes_text=encrypt_field(notes_text),
         ))
         await db.commit()
         await log_forensic(db, "NOTE_SAVED", "clinical_notes", json.dumps({"mrn": mrn}))

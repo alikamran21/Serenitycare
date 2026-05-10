@@ -22,6 +22,7 @@ services:
       - RATE_LIMIT_WINDOW_SECONDS=60
       - MAX_FAILED_LOGINS=5
       - ALLOWED_ORIGINS=*
+      - FIELD_ENCRYPTION_KEY=q9pyLFup7k_AuLhuFXT8epRxHGXAVPyCGvLlDLZzcUA=
     expose:
       - "5000"
     networks:

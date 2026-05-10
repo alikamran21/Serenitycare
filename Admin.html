@@ -148,7 +148,8 @@
                     </div>
                     <div class="admin-panel p-5 text-center border-t-2 border-t-emerald-500" id="adm-pan-schema">
                         <p class="text-[10px] text-emerald-500 font-bold uppercase tracking-widest mb-1">Active Schema</p>
-                        <span class="text-lg font-bold text-emerald-400 code-font mt-2 block" id="adm-schema-badge">shadow_vault</span>
+                        <span class="text-lg font-bold text-emerald-400 code-font mt-2 block" id="adm-schema-badge">public</span>
+                        <span class="text-[9px] text-emerald-600 uppercase tracking-widest flex items-center justify-center gap-1 mt-1"><span class="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block animate-pulse"></span>Live</span>
                     </div>
                 </div>
 
@@ -297,6 +298,9 @@
                 const data = await res.json();
                 if (res.ok) {
                     adminToken = data.access_token;
+                    // Persist token so page refreshes don't lose the session
+                    sessionStorage.setItem('phantasm_token', adminToken);
+                    sessionStorage.setItem('phantasm_role', 'admin');
                     document.body.classList.add('glitch-effect');
                     setTimeout(() => document.body.classList.remove('glitch-effect'), 300);
                     switchViewLayer('view-admin');
@@ -332,10 +336,15 @@
             if (tab === 'ledger') loadLedger();
         }
 
-        // ── AUTO REFRESH every 30s ────────────────────────────────────
+        // ── AUTO REFRESH every 20s ────────────────────────────────────
         function startAutoRefresh() {
             clearInterval(autoRefreshTimer);
-            autoRefreshTimer = setInterval(() => loadDashboard(), 30000);
+            autoRefreshTimer = setInterval(() => {
+                loadDashboard();
+                // Also refresh ledger if that tab is currently active
+                const ledgerActive = document.getElementById('adm-view-ledger')?.classList.contains('active');
+                if (ledgerActive) loadLedger();
+            }, 20000);
         }
 
         function authHeaders() {
@@ -343,13 +352,22 @@
         }
 
         // ── DASHBOARD: load threats + alerts from real API ────────────
-        async function loadDashboard() {
-            await Promise.all([loadThreats(), loadAlerts(), loadLedgerMetrics()]);
-        }
+        let _dashboardController = null;
 
-        async function loadThreats() {
+        async function loadDashboard() {
+            // Cancel any in-flight dashboard request
+            if (_dashboardController) _dashboardController.abort();
+            _dashboardController = new AbortController();
+            const signal = _dashboardController.signal;
+            await Promise.allSettled([
+                loadThreats(signal),
+                loadAlerts(signal),
+                loadLedgerMetrics(signal)
+            ]);
+        }
+        async function loadThreats(signal) {
             try {
-                const res  = await fetch(`${API_BASE}/auditlogs?kind=threats&limit=100`, { headers: authHeaders() });
+                const res  = await fetch(`${API_BASE}/auditlogs?kind=threats&limit=100`, { headers: authHeaders(), signal });
                 if (res.status === 401) { logoutAdmin(); return; }
                 const data = await res.json();
                 const threats = data.threats || [];
@@ -358,7 +376,7 @@
 
                 if (!threats.length) {
                     document.getElementById('adm-threats-body').innerHTML =
-                        `<tr><td colspan="4" class="text-center py-10 text-slate-500 code-font">No threat actors recorded yet.</td></tr>`;
+                        `<tr><td colspan="5" class="text-center py-10 text-slate-500 code-font">No threat actors recorded yet.</td></tr>`;
                     return;
                 }
 
@@ -374,15 +392,16 @@
                     </tr>`;
                 }).join('');
             } catch(e) {
+                if (e.name === 'AbortError') return; // stale request cancelled — ignore
                 console.error('loadThreats error:', e);
                 document.getElementById('adm-threats-body').innerHTML =
-                    `<tr><td colspan="4" class="text-center py-10 text-rose-500 code-font">Failed to load threats: ${e.message}</td></tr>`;
+                    `<tr><td colspan="5" class="text-center py-10 text-rose-500 code-font">Failed to load threats: ${e.message}</td></tr>`;
             }
         }
 
-        async function loadAlerts() {
+        async function loadAlerts(signal) {
             try {
-                const res  = await fetch(`${API_BASE}/auditlogs?kind=alerts&limit=50`, { headers: authHeaders() });
+                const res  = await fetch(`${API_BASE}/auditlogs?kind=alerts&limit=50`, { headers: authHeaders(), signal });
                 if (res.status === 401) { logoutAdmin(); return; }
                 const data = await res.json();
                 const alerts = data.alerts || [];
@@ -412,29 +431,40 @@
                     </div>`;
                 }).join('');
             } catch(e) {
+                if (e.name === 'AbortError') return;
                 console.error('loadAlerts error:', e);
                 document.getElementById('adm-alerts-list').innerHTML =
                     `<div class="text-center py-10 text-rose-500 text-xs code-font">Failed to load alerts.</div>`;
             }
         }
 
-        async function loadLedgerMetrics() {
+        async function loadLedgerMetrics(signal) {
             try {
-                const res  = await fetch(`${API_BASE}/auditlogs?kind=logs&limit=500`, { headers: authHeaders() });
+                const res  = await fetch(`${API_BASE}/auditlogs?kind=logs&limit=500`, { headers: authHeaders(), signal });
                 if (!res.ok) return;
                 const data = await res.json();
                 const logs = data.logs || [];
                 document.getElementById('adm-metric-queries').innerText = logs.length.toLocaleString();
-            } catch(e) { /* silently skip metric */ }
+            } catch(e) {
+                if (e.name === 'AbortError') return;
+                /* silently skip metric */
+            }
         }
 
         // ── LIVE LEDGER TAB ───────────────────────────────────────────
+        let _ledgerController = null;
+
         async function loadLedger() {
+            // Cancel any in-flight ledger fetch
+            if (_ledgerController) _ledgerController.abort();
+            _ledgerController = new AbortController();
+            const signal = _ledgerController.signal;
+
             const tbody = document.getElementById('adm-ledger-body');
             tbody.innerHTML = `<tr><td colspan="3" class="text-center py-10"><i class="fas fa-circle-notch fa-spin text-sky-500 text-xl block mb-2"></i><span class="text-slate-500 text-xs code-font">Fetching forensic ledger...</span></td></tr>`;
 
             try {
-                const res  = await fetch(`${API_BASE}/auditlogs?kind=logs&limit=200`, { headers: authHeaders() });
+                const res  = await fetch(`${API_BASE}/auditlogs?kind=logs&limit=200`, { headers: authHeaders(), signal });
                 if (res.status === 401) { logoutAdmin(); return; }
                 const data = await res.json();
                 const logs = data.logs || [];
@@ -465,6 +495,7 @@
                     </tr>`;
                 }).join('');
             } catch(e) {
+                if (e.name === 'AbortError') return;
                 console.error('loadLedger error:', e);
                 tbody.innerHTML = `<tr><td colspan="3" class="text-center py-10 text-rose-500 code-font">Failed to load ledger: ${e.message}</td></tr>`;
             }
@@ -486,7 +517,14 @@
             ).join('');
         }
 
+        let _explorerController = null;
+
         async function admFetchTable(kind, label) {
+            // Cancel any in-flight explorer fetch
+            if (_explorerController) _explorerController.abort();
+            _explorerController = new AbortController();
+            const signal = _explorerController.signal;
+
             // Highlight selected
             document.querySelectorAll('#adm-entity-list button').forEach(b => {
                 b.classList.remove('bg-sky-900/40','text-sky-400');
@@ -500,7 +538,7 @@
                 `<tr><td colspan="100%" class="text-center py-16"><i class="fas fa-circle-notch fa-spin text-sky-500 text-2xl mb-2 block"></i><span class="text-slate-500 text-xs">Querying database...</span></td></tr>`;
 
             try {
-                const res  = await fetch(`${API_BASE}/auditlogs?kind=${kind}&limit=200`, { headers: authHeaders() });
+                const res  = await fetch(`${API_BASE}/auditlogs?kind=${kind}&limit=200`, { headers: authHeaders(), signal });
                 if (res.status === 401) { logoutAdmin(); return; }
                 const data = await res.json();
 
@@ -564,6 +602,7 @@
                     return `<tr class="hover:bg-slate-900/40 transition">${cells.map(c=>`<td class="p-3">${c}</td>`).join('')}</tr>`;
                 }).join('');
             } catch(e) {
+                if (e.name === 'AbortError') return;
                 console.error('admFetchTable error:', e);
                 document.getElementById('adm-exp-tbody').innerHTML =
                     `<tr><td colspan="100%" class="text-center py-10 text-rose-500 code-font">Error: ${e.message}</td></tr>`;

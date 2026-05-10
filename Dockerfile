@@ -16,4 +16,4 @@ COPY api/ ./api/
 
 EXPOSE 5000
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "1", "--threads", "4", "--timeout", "120", "--graceful-timeout", "30", "--keep-alive", "5", "app:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--threads", "8", "--timeout", "60", "--graceful-timeout", "20", "--keep-alive", "5", "--worker-class", "gthread", "--max-requests", "500", "--max-requests-jitter", "50", "app:app"]

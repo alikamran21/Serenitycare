@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse, urlunparse, parse_qs, urlencode
 
 import resend
+from cryptography.fernet import Fernet, InvalidToken
 
 from jose import JWTError, jwt
 from sqlalchemy import (
@@ -38,6 +39,38 @@ JWT_SECRET    = os.environ.get("JWT_SECRET_KEY", "changeme")
 JWT_ALGORITHM = os.environ.get("JWT_ALGORITHM", "HS256")
 JWT_EXPIRE    = int(os.environ.get("JWT_ACCESS_TOKEN_EXPIRE_MINUTES", 60))
 OTP_EXPIRE    = int(os.environ.get("OTP_EXPIRE_MINUTES", 5))
+
+# ── Field-level encryption (PHI: diagnosis, treatment, notes) ────────
+_FIELD_KEY_RAW = os.environ.get("FIELD_ENCRYPTION_KEY", "")
+_fernet: Fernet | None = None
+
+def _get_fernet() -> Fernet:
+    global _fernet
+    if _fernet is None:
+        if not _FIELD_KEY_RAW:
+            raise RuntimeError(
+                "FIELD_ENCRYPTION_KEY is not set — "
+                "generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+            )
+        _fernet = Fernet(_FIELD_KEY_RAW.encode())
+    return _fernet
+
+def encrypt_field(value: str | None) -> str | None:
+    """Encrypt a plaintext string for PHI storage. Returns None for empty/None input."""
+    if not value:
+        return value
+    return _get_fernet().encrypt(value.encode()).decode()
+
+def decrypt_field(value: str | None) -> str | None:
+    """Decrypt a stored PHI field. Returns the original value unchanged if decryption fails
+    (handles plaintext legacy rows that were stored before encryption was enabled)."""
+    if not value:
+        return value
+    try:
+        return _get_fernet().decrypt(value.encode()).decode()
+    except (InvalidToken, Exception):
+        # Graceful fallback: value was stored before encryption was introduced
+        return value
 
 RESEND_API_KEY  = os.environ.get("RESEND_API_KEY", "")
 RESEND_FROM     = os.environ.get("RESEND_FROM", "onboarding@resend.dev")
@@ -84,19 +117,19 @@ def get_session_maker():
             poolclass=AsyncAdaptedQueuePool,
             connect_args={
                 **_db_connect_args,
-                "command_timeout": 30,
+                "command_timeout": 20,
                 "prepared_statement_cache_size": 0,  # Required for PgBouncer/Neon pooler
                 "timeout": 30,          # asyncpg connect timeout (Neon cold starts can be slow)
                 "server_settings": {
-                    "statement_timeout": "25000",   # 25s — gives queries breathing room
+                    "statement_timeout": "18000",   # 18s — fast-fail for slow queries
                     "application_name": "serenitycare",
                 },
             },
-            pool_size=3,
-            max_overflow=5,
+            pool_size=5,           # up from 3 — handle concurrent requests
+            max_overflow=10,       # up from 5 — burst headroom
             pool_pre_ping=True,         # Recycle stale Neon connections before use
             pool_recycle=180,           # 3 min recycle — Neon idle connections drop at 5 min
-            pool_timeout=35,
+            pool_timeout=25,
             echo=False,
         )
         _sessionmaker = async_sessionmaker(

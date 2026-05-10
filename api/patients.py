@@ -8,7 +8,8 @@ from api.common import (
     SessionLocal, User, Doctor, Patient, Appointment, ClinicalNote,
     log_forensic, flag_threat, get_user, mark_honeypot, honeypot_gate, 
     parse_body, get_token, get_client_ip, err, _headers, select, 
-    SHADOW_PATIENTS, decode_token, scan_for_attacks, run_async
+    SHADOW_PATIENTS, decode_token, scan_for_attacks, run_async,
+    encrypt_field, decrypt_field
 )
 from sqlalchemy import text, func
 
@@ -72,8 +73,8 @@ async def _run(token, body, method, ip, ua):
                 patients.append({
                     "mrn":              pat.mrn,
                     "full_name":        pat.full_name,
-                    "diagnosis":        pat.primary_diagnosis,
-                    "active_treatment": pat.active_treatment,
+                    "diagnosis":        decrypt_field(pat.primary_diagnosis),
+                    "active_treatment": decrypt_field(pat.active_treatment),
                     "status":           pat.status,
                     "doctor":           doc.full_name if doc else None,
                     "doc_id":           pat.doc_id,
@@ -118,8 +119,10 @@ async def _run(token, body, method, ip, ua):
             await db.flush()
             
             new_pat = Patient(mrn=mrn, user_id=new_uid, doc_id=doc_id,
-                              full_name=full_name, primary_diagnosis=diagnosis,
-                              active_treatment=treatment, status="Active")
+                              full_name=full_name,
+                              primary_diagnosis=encrypt_field(diagnosis),
+                              active_treatment=encrypt_field(treatment),
+                              status="Active")
             db.add(new_pat)
             await db.commit()
             
@@ -136,8 +139,8 @@ async def _run(token, body, method, ip, ua):
             pat = r.scalar_one_or_none()
             if not pat: return 404, {"detail": "Patient not found."}
             
-            if "primary_diagnosis" in body: pat.primary_diagnosis = body["primary_diagnosis"]
-            if "active_treatment"  in body: pat.active_treatment  = body["active_treatment"]
+            if "primary_diagnosis" in body: pat.primary_diagnosis = encrypt_field(body["primary_diagnosis"])
+            if "active_treatment"  in body: pat.active_treatment  = encrypt_field(body["active_treatment"])
             if "status"            in body: pat.status            = body["status"]
             
             await db.commit()
