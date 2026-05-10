@@ -20,14 +20,12 @@ jobs:
           username: ${{ secrets.SERVER_USER }}
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
-
             cd ~/Repo/Serenitycare
 
             git reset --hard HEAD
             git pull origin main
-            
 
             sudo docker compose down
             sudo docker compose up -d --build
-            
+
             sudo docker image prune -f
