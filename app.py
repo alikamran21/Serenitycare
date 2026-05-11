@@ -8,7 +8,6 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── Enable logging so verifyotp debug lines appear in console/gunicorn output ──
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -26,6 +25,7 @@ from api.patientprofile import handler as patientprofile_handler
 from api.auditlogs     import handler as auditlogs_handler
 from api.adminexplorer import handler as adminexplorer_handler
 from api.ping          import handler as ping_handler
+from api.canary        import handler as canary_handler
 
 app = Flask(__name__)
 
@@ -35,9 +35,14 @@ class VercelRequest:
         self.headers = dict(flask_req.headers)
         self.body    = flask_req.get_data()
         self.args    = flask_req.args
+        self.path    = flask_req.path 
 
 def flask_response(result: dict) -> Response:
-    resp = Response(result.get("body", ""), status=result.get("statusCode", 200))
+    if result.get("is_binary"):
+        resp = Response(result.get("body", b""), status=result.get("statusCode", 200))
+    else:
+        resp = Response(result.get("body", ""), status=result.get("statusCode", 200))
+        
     for k, v in result.get("headers", {}).items():
         resp.headers[k] = v
     return resp
@@ -61,6 +66,8 @@ ROUTES = [
     ("/api/auditlogs",       auditlogs_handler,      ["GET",  "OPTIONS"]),
     ("/api/adminexplorer",   adminexplorer_handler,  ["GET",  "OPTIONS"]),
     ("/api/ping",            ping_handler,           ["GET",  "OPTIONS"]),
+    ("/api/canary/download", canary_handler,         ["GET",  "OPTIONS"]),
+    ("/api/canary/beacon",   canary_handler,         ["GET",  "OPTIONS"]),
 ]
 
 for path, fn, methods in ROUTES:
@@ -72,7 +79,6 @@ if __name__ == "__main__":
     port  = int(os.environ.get("PORT", 5000))
     debug = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
 
-    # Pre-warm the DB connection pool so first request isn't slow
     try:
         from api.common import run_async, get_session_maker
         from sqlalchemy import text as _text
