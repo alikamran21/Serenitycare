@@ -21,12 +21,12 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           script: |
             cd ~/Repo/Serenitycare
-            
-            # Force Git to overwrite everything using sudo
+
             sudo git fetch --all
             sudo git reset --hard origin/main
+
+            sudo chmod +x waf_action.sh
             
-            # Rebuild and restart the Docker containers
             sudo docker compose down
             sudo docker compose up -d --build
             
