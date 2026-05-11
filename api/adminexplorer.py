@@ -6,6 +6,7 @@ import json
 from api.common import (
     SessionLocal, User, Doctor, Patient, ClinicalNote, Appointment,
     DailyTask, OTPRequest, ForensicLedger, SecurityAlert, ThreatActor,
+    LoginActivity, # FIXED: Added LoginActivity import
     get_user, get_token, err, _headers, select, decode_token, run_async,
     decrypt_field
 )
@@ -19,7 +20,7 @@ PUBLIC_TABLES = {
 }
 # monitor schema (SIEM data)
 MONITOR_TABLES = {
-    "threat_actors", "security_alerts", "forensic_ledger",
+    "threat_actors", "security_alerts", "forensic_ledger", "login_activity", # FIXED
 }
 
 async def _run(token, kind, skip, limit):
@@ -187,6 +188,28 @@ async def _run(token, kind, skip, limit):
             }
 
         # ── MONITOR SCHEMA ───────────────────────────────────────────
+        
+        # FIXED: Added logic to view the login_activity table
+        if kind == "login_activity":
+            rows = await db.execute(
+                select(LoginActivity).order_by(LoginActivity.attempt_time.desc()).offset(skip).limit(limit)
+            )
+            items = rows.scalars().all()
+            total = await db.scalar(select(func.count(LoginActivity.login_id)))
+            return 200, {
+                "kind": kind, "total": total,
+                "headers": ["Login ID", "Email Attempted", "IP Address", "Success", "Attempt Time"],
+                "rows": [
+                    [
+                        str(l.login_id),
+                        l.email_attempted or "—",
+                        str(l.ip_address) if l.ip_address else "—",
+                        "✓ Yes" if l.is_success else "✗ No",
+                        l.attempt_time.strftime("%Y-%m-%d %H:%M:%S") if l.attempt_time else "—",
+                    ]
+                    for l in items
+                ],
+            }
 
         if kind == "threat_actors":
             rows = await db.execute(
@@ -252,7 +275,6 @@ async def _run(token, kind, skip, limit):
             }
 
         return 400, {"detail": f"Unknown table kind: '{kind}'"}
-
 
 def handler(request, context=None):
     M = "GET, OPTIONS"
