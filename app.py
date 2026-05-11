@@ -26,8 +26,6 @@ from api.patientprofile import handler as patientprofile_handler
 from api.auditlogs     import handler as auditlogs_handler
 from api.adminexplorer import handler as adminexplorer_handler
 from api.ping          import handler as ping_handler
-# NEW: Import the canary handler
-from api.canary        import handler as canary_handler
 
 app = Flask(__name__)
 
@@ -37,15 +35,9 @@ class VercelRequest:
         self.headers = dict(flask_req.headers)
         self.body    = flask_req.get_data()
         self.args    = flask_req.args
-        self.path    = flask_req.path # Added path so the canary router can read it
 
 def flask_response(result: dict) -> Response:
-    # Check if the response is explicitly marked as binary (like our tracking GIF)
-    if result.get("is_binary"):
-        resp = Response(result.get("body", b""), status=result.get("statusCode", 200))
-    else:
-        resp = Response(result.get("body", ""), status=result.get("statusCode", 200))
-        
+    resp = Response(result.get("body", ""), status=result.get("statusCode", 200))
     for k, v in result.get("headers", {}).items():
         resp.headers[k] = v
     return resp
@@ -69,10 +61,6 @@ ROUTES = [
     ("/api/auditlogs",       auditlogs_handler,      ["GET",  "OPTIONS"]),
     ("/api/adminexplorer",   adminexplorer_handler,  ["GET",  "OPTIONS"]),
     ("/api/ping",            ping_handler,           ["GET",  "OPTIONS"]),
-    
-    # NEW: Canary Token Routes
-    ("/api/canary/download", canary_handler,         ["GET",  "OPTIONS"]),
-    ("/api/canary/beacon",   canary_handler,         ["GET",  "OPTIONS"]),
 ]
 
 for path, fn, methods in ROUTES:

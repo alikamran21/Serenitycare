@@ -108,19 +108,6 @@
                         </div>
                     </div>
 
-                    <div class="mb-8 bg-rose-50/50 border border-rose-200 rounded-2xl p-6 flex items-center justify-between shadow-sm relative overflow-hidden group">
-                        <div class="absolute top-0 left-0 w-1.5 h-full bg-rose-500 group-hover:bg-rose-600 transition-colors"></div>
-                        <div>
-                            <h3 class="text-xs font-bold text-rose-600 uppercase tracking-widest mb-1 flex items-center gap-2">
-                                <i class="fas fa-lock"></i> Restricted Access
-                            </h3>
-                            <p class="font-bold text-slate-800 text-sm">Classified Medical Dossier & Incident Logs</p>
-                        </div>
-                        <button onclick="downloadCanary()" class="bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold py-2.5 px-5 rounded-full shadow-md transition-all hover:-translate-y-0.5 flex items-center gap-2">
-                            <i class="fas fa-file-pdf"></i> Download PDF
-                        </button>
-                    </div>
-
                     <div>
                         <h3 class="text-sm font-bold text-slate-700 mb-4 border-b border-slate-50 pb-2 flex items-center gap-2"><i class="fas fa-clipboard-list text-teal-400"></i> Daily Treatment Plan</h3>
                         <div class="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
@@ -228,13 +215,6 @@
             const time = new Date().toLocaleTimeString();
             tv.innerHTML += `<div><span class="text-slate-500">[${time}]</span> <span class="font-bold text-slate-400">[${action}]</span> <span class="text-sky-300">"${query}"</span></div>`;
             tv.scrollTop = tv.scrollHeight;
-        }
-
-        // NEW: Canary Download Function
-        function downloadCanary() {
-            addLogToConsole('EXPORT', `EXPORT shadow_vault.clinical_notes TO PDF WHERE mrn='${currentPatientMRN}'`);
-            window.open('/api/canary/download', '_blank');
-            showToast('Decrypted dossier generated. Downloading...', 'success');
         }
 
         document.addEventListener('keydown', (e) => {
