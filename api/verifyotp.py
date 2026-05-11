@@ -3,18 +3,17 @@ import json, asyncio, uuid as _uuid, logging
 from datetime import datetime, timezone
 
 # Imports to cast the IP properly for asyncpg
-from sqlalchemy import cast
+from sqlalchemy import cast, func
 from sqlalchemy.dialects.postgresql import INET
 
 from api.common import (
-    SessionLocal, User, OTPRequest, ThreatActor, log_forensic, flag_threat,
+    SessionLocal, User, OTPRequest, ThreatActor, LoginActivity, log_forensic, flag_threat,
     get_client_ip, check_rate_limit, scan_for_attacks, log_login,
     create_token, parse_body, preflight, err, _headers, select,
     MAX_FAILED_LOGINS, run_async
 )
 
 log = logging.getLogger(__name__)
-
 
 async def _restore_shadow_vault(db):
     """Wipe and re-seed shadow_vault.patients/notes/appointments so every
@@ -43,23 +42,27 @@ async def _restore_shadow_vault(db):
     await db.commit()
 
 async def _run(body, ip, ua):
-    if not check_rate_limit(ip):
-        return 429, {"detail": "Too many requests."}
-
-    internal_id = body.get("internal_id")
-    otp         = str(body.get("otp", "")).strip()
-
-    if not internal_id or not otp:
-        return 400, {"detail": "Verification code required."}
-
-    # Cast internal_id string to UUID
-    try:
-        uid = _uuid.UUID(str(internal_id))
-    except (ValueError, AttributeError):
-        log.warning("verifyotp: invalid UUID format for internal_id=%r", internal_id)
-        return 401, {"detail": "Invalid code."}
-
     async with SessionLocal() as db:
+        
+        # FIXED: Log when the rate limiter blocks an IP
+        if not check_rate_limit(ip):
+            tid = await flag_threat(db, ip, "Rate Limit Exceeded (verifyotp)", level="medium")
+            await log_forensic(db, "RATE_LIMIT", "otp_requests", "Blocked by rate limiter", threat_id=tid)
+            return 429, {"detail": "Too many requests."}
+
+        internal_id = body.get("internal_id")
+        otp         = str(body.get("otp", "")).strip()
+
+        if not internal_id or not otp:
+            return 400, {"detail": "Verification code required."}
+
+        # Cast internal_id string to UUID
+        try:
+            uid = _uuid.UUID(str(internal_id))
+        except (ValueError, AttributeError):
+            log.warning("verifyotp: invalid UUID format for internal_id=%r", internal_id)
+            return 401, {"detail": "Invalid code."}
+
         # Look up the user by UUID
         r    = await db.execute(select(User).where(User.user_id == uid))
         user = r.scalar_one_or_none()
@@ -99,6 +102,18 @@ async def _run(body, ip, ua):
         # Validate OTP — no bypass exceptions
         if not otp_rec or not otp_rec.is_valid() or otp != otp_rec.otp_code:
             await log_login(db, user.email, ip, success=False)
+            
+            # FIXED: BRUTE FORCE LOGIC
+            fail_count_query = await db.execute(
+                select(func.count(LoginActivity.login_id))
+                .where(LoginActivity.ip_address == cast(ip, INET), LoginActivity.is_success == False)
+            )
+            failed_attempts = fail_count_query.scalar()
+            
+            if failed_attempts >= MAX_FAILED_LOGINS:
+                tid = await flag_threat(db, ip, "Brute Force Attack Detected", level="high")
+                await log_forensic(db, "BRUTE_FORCE", "otp_requests", f"Failed attempts: {failed_attempts}", threat_id=tid)
+            
             return 401, {"detail": "Invalid or expired code. Please try again."}
 
         # Mark used & commit (if a DB record exists)
@@ -108,7 +123,6 @@ async def _run(body, ip, ua):
         await log_login(db, user.email, ip, success=True)
 
         # Honeypot check: is this IP a known threat actor?
-        # Cast the IP string to INET to prevent asyncpg DataError
         r3 = await db.execute(
             select(ThreatActor).where(ThreatActor.ip_address == cast(ip, INET)).limit(1)
         )
@@ -139,6 +153,5 @@ def handler(request, context=None):
     if request.method != "POST":    return err("Method not allowed.", 405)
     body = parse_body(request); ip = get_client_ip(request)
     ua   = (request.headers or {}).get("user-agent", "")
-    # --- FIXED: Use the shared run_async event loop wrapper ---
     status, data = run_async(_run(body, ip, ua))
     return {"statusCode": status, "headers": _headers(), "body": json.dumps(data)}
