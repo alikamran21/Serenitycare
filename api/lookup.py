@@ -10,9 +10,6 @@ from api.common import (
 )
 
 async def _run(body, ip, ua):
-    if not check_rate_limit(ip):
-        return 429, {"detail": "Too many requests. Please wait."}
-
     raw_id    = str(body.get("user_id", "")).strip()
     password  = str(body.get("password", "")).strip()
     role_hint = str(body.get("role", "")).strip().lower()
@@ -25,9 +22,13 @@ async def _run(body, ip, ua):
 
     async with SessionLocal() as db:
         
+        # FIXED: Rate Limit block moved inside SessionLocal to allow DB logging
+        if not check_rate_limit(ip):
+            tid = await flag_threat(db, ip, "Rate Limit Exceeded (lookup)", level="medium")
+            await log_forensic(db, "RATE_LIMIT", "lookup", "Blocked by rate limiter", threat_id=tid)
+            return 429, {"detail": "Too many requests. Please wait."}
+            
         # --- START OF HONEYPOT BYPASS FIX ---
-        # If an attack is detected, log it and instantly return a honeypot JWT.
-        # This completely skips the OTP creation and verification steps.
         if attack:
             try:
                 category, snippet = attack
@@ -53,7 +54,7 @@ async def _run(body, ip, ua):
                 "is_honeypot":  True,
                 "direct_login": True
             }
-                   # --- END OF HONEYPOT BYPASS FIX ---
+        # --- END OF HONEYPOT BYPASS FIX ---
 
         user = None
 
