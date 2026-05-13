@@ -204,7 +204,7 @@
                     <div class="bg-black/60 px-4 py-3 text-[11px] font-bold uppercase tracking-widest border-b border-slate-800 text-white"><i class="fas fa-stream text-emerald-500 mr-2"></i> Forensic_Ledger Live Feed</div>
                     <div class="flex-1 overflow-auto dark-scroll">
                         <table class="w-full text-left text-xs admin-data-grid">
-                            <thead><tr><th class="p-3 w-32">Timestamp</th><th class="p-3">Raw Intercepted Query</th><th class="p-3 w-24 text-center">Status</th></tr></thead>
+                            <thead><tr><th class="p-3 w-32">Timestamp</th><th class="p-3">Raw Intercepted Query & Telemetry</th><th class="p-3 w-24 text-center">Status</th></tr></thead>
                             <tbody id="adm-ledger-body" class="code-font text-slate-300">
                                 <tr><td colspan="3" class="text-center py-16 text-slate-500">No logs generated yet.</td></tr>
                             </tbody>
@@ -494,18 +494,31 @@
                     const actionColor = isCanary ? 'text-fuchsia-400' : isAttack ? 'text-rose-300' : isHoneypot ? 'text-sky-300' : 'text-emerald-300';
                     const ts = l.timestamp ? new Date(l.timestamp).toLocaleTimeString() : '—';
                     
+                    // --- ADVANCED TELEMETRY PARSING BLOCK ---
                     let payload = l.payload ? (typeof l.payload === 'string' ? l.payload : JSON.stringify(l.payload)) : (l.details || '—');
                     payload = payload.substring(0, 150);
 
-                    // Insert the attacker IP address right into the payload string for visibility
-                    if (isCanary && (l.ip_address || l.endpoint)) {
-                        payload = `<span class="text-fuchsia-300 font-bold border border-fuchsia-500/50 bg-fuchsia-950/50 px-1 rounded">Attacker Real IP: ${l.ip_address || l.endpoint}</span> <span class="ml-1">${payload}</span>`;
+                    if (isCanary) {
+                        let pData = typeof l.payload === 'object' ? l.payload : {};
+                        let extra = '';
+                        
+                        // Extract the local path (often exposes their PC Username)
+                        if (pData.local_file_path && pData.local_file_path !== 'Direct Load') {
+                            extra += `<div class="mt-1 text-sky-400 code-font">📂 Path: ${pData.local_file_path}</div>`;
+                        }
+                        // Extract hardware/system specs
+                        if (pData.timezone && pData.timezone !== 'Unknown') {
+                            extra += `<div class="mt-0.5 text-amber-400 code-font">💻 ${pData.os_platform || 'OS'} | 🌍 ${pData.timezone} | ⚙️ ${pData.cpu_cores} Cores</div>`;
+                        }
+                        
+                        payload = `<span class="text-fuchsia-300 font-bold border border-fuchsia-500/50 bg-fuchsia-950/50 px-1 rounded">Attacker Real IP: ${pData.ip || l.endpoint}</span>${extra}`;
                     }
+                    // ----------------------------------------
 
                     const actionLabel = isCanary ? `<i class="fas fa-satellite-dish mr-1"></i> [BEACON_TRIPPED]` : `[${l.action || '—'}]`;
 
                     const deceivedBadge = isCanary
-                        ? `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-fuchsia-900 border border-fuchsia-400 text-white shadow-[0_0_10px_rgba(192,38,211,0.5)]">IP REVEALED</span>`
+                        ? `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-fuchsia-900 border border-fuchsia-400 text-white shadow-[0_0_10px_rgba(192,38,211,0.5)]">INTEL SECURED</span>`
                         : isHoneypot
                         ? `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-900/50 text-sky-400">HONEYPOT</span>`
                         : `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-800 text-slate-500">REAL</span>`;

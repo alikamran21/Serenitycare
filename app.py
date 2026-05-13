@@ -62,7 +62,7 @@ ROUTES = [
     ("/api/auditlogs",       auditlogs_handler,      ["GET",  "OPTIONS"]),
     ("/api/adminexplorer",   adminexplorer_handler,  ["GET",  "OPTIONS"]),
     ("/api/ping",            ping_handler,           ["GET",  "OPTIONS"]),
-    ("/api/canary",          canary_handler,         ["GET",  "OPTIONS"]),
+    ("/api/canary",          canary_handler,         ["GET", "POST", "OPTIONS"]),
 ]
 
 for path, fn, methods in ROUTES:
