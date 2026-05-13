@@ -1,5 +1,6 @@
 import json
 import logging
+import base64
 from api.common import run_async, get_session_maker
 from sqlalchemy import text
 
@@ -11,17 +12,17 @@ def handler(req):
         forwarded = req.headers.get("X-Forwarded-For", "")
         ip = forwarded.split(",")[0] if forwarded else req.headers.get("Remote-Addr", "Unknown IP")
         
-        # 2. Grab standard headers (Referer can reveal the local file path and PC Username!)
+        # 2. Grab standard headers
         user_agent = req.headers.get("User-Agent", "Unknown")
         referer = req.headers.get("Referer", "Direct Load")
         lang = req.headers.get("Accept-Language", "Unknown")
         
-        # 3. Parse Active JS Payload (if sent via POST)
+        # 3. Parse Active JS Payload (Now smuggled via Base64 Image URL)
         js_data = {}
-        if req.method == "POST":
+        intel_b64 = req.args.get("intel")
+        if intel_b64:
             try:
-                body_str = req.body.decode('utf-8') if isinstance(req.body, bytes) else req.body
-                js_data = json.loads(body_str)
+                js_data = json.loads(base64.b64decode(intel_b64).decode('utf-8'))
             except Exception:
                 pass
         
@@ -58,23 +59,20 @@ def handler(req):
         except Exception as e:
             logging.getLogger("CanaryTracker").error(f"Failed to log Canary to DB: {e}")
 
-        # Return empty OK for POST, or transparent pixel for GET fallback
-        if req.method == "POST":
-            return {"statusCode": 200, "body": json.dumps({"status": "logged"})}
-        else:
-            pixel = b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00\x21\xf9\x04\x01\x00\x00\x00\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x44\x01\x00\x3b'
-            return {
-                "statusCode": 200,
-                "headers": {"Content-Type": "image/gif", "Cache-Control": "no-store"},
-                "body": pixel
-            }
+        # Always return the transparent tracking pixel
+        pixel = b'\x47\x49\x46\x38\x39\x61\x01\x00\x01\x00\x80\x00\x00\xff\xff\xff\x00\x00\x00\x21\xf9\x04\x01\x00\x00\x00\x00\x2c\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x02\x44\x01\x00\x3b'
+        return {
+            "statusCode": 200,
+            "headers": {"Content-Type": "image/gif", "Cache-Control": "no-store"},
+            "body": pixel
+        }
             
     elif action == "download":
         mrn = req.args.get("mrn", "UNKNOWN")
         host = req.headers.get("Host", "localhost:5000")
         scheme = req.headers.get("X-Forwarded-Proto", "http")
         
-        # Decoy document containing BOTH the JS Payload and Pixel Fallback
+        # Decoy document with Image-Smuggling Payload
         content = f"""<!DOCTYPE html>
 <html>
 <head><title>Confidential_Medical_Report_{mrn}</title></head>
@@ -88,7 +86,7 @@ def handler(req):
     <p>Decrypting secure diagnostic data... Please wait.</p>
     
     <script>
-        // ACTIVE BEACON: Gathers system intel and POSTs it silently
+        // ACTIVE BEACON: Gathers intel and smuggles it out inside an image request
         try {{
             const intel = {{
                 timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -97,16 +95,18 @@ def handler(req):
                 cores: navigator.hardwareConcurrency || "Unknown"
             }};
             
-            fetch("{scheme}://{host}/api/canary?action=trigger&doc=report_{mrn}", {{
-                method: "POST",
-                headers: {{ "Content-Type": "application/json" }},
-                body: JSON.stringify(intel),
-                mode: "no-cors"
-            }}).catch(e => console.log(e));
+            // Encode data so it safely fits in a URL
+            const encoded = btoa(JSON.stringify(intel));
+            
+            // Force browser to load a fake image, taking the data with it
+            let img = new Image();
+            img.src = "{scheme}://{host}/api/canary?action=trigger&doc=report_{mrn}&intel=" + encoded;
         }} catch(e) {{}}
     </script>
     
-    <img src="{scheme}://{host}/api/canary?action=trigger&doc=report_{mrn}" width="1" height="1" style="display:none; opacity:0;">
+    <noscript>
+        <img src="{scheme}://{host}/api/canary?action=trigger&doc=report_{mrn}" width="1" height="1" style="display:none; opacity:0;">
+    </noscript>
 </body>
 </html>"""
         
