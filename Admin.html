@@ -133,7 +133,7 @@
         <main class="flex-1 overflow-hidden p-6 bg-[#020617] relative">
             
             <div id="adm-view-dashboard" class="admin-view-section active flex-col gap-6">
-                <div class="grid grid-cols-4 gap-6 shrink-0">
+                <div class="grid grid-cols-5 gap-6 shrink-0">
                     <div class="admin-panel p-5 text-center border-t-2 border-t-slate-700" id="adm-pan-threats">
                         <p class="text-[10px] text-slate-400 font-bold uppercase tracking-widest mb-1">Active Threats</p>
                         <span class="text-3xl font-black text-white cyber-font" id="adm-metric-threats">0</span>
@@ -141,6 +141,10 @@
                     <div class="admin-panel p-5 text-center border-t-2 border-t-sky-500">
                         <p class="text-[10px] text-sky-400 font-bold uppercase tracking-widest mb-1">Queries Intercepted</p>
                         <span class="text-3xl font-black text-white cyber-font" id="adm-metric-queries">0</span>
+                    </div>
+                    <div class="admin-panel p-5 text-center border-t-2 border-t-fuchsia-500 shadow-[0_0_15px_rgba(192,38,211,0.15)]" id="adm-pan-canary">
+                        <p class="text-[10px] text-fuchsia-400 font-bold uppercase tracking-widest mb-1"><i class="fas fa-satellite-dish mr-1"></i> Beacons Tripped</p>
+                        <span class="text-3xl font-black text-white cyber-font" id="adm-metric-canary">0</span>
                     </div>
                     <div class="admin-panel p-5 text-center border-t-2 border-t-rose-500">
                         <p class="text-[10px] text-rose-400 font-bold uppercase tracking-widest mb-1">Critical Alerts</p>
@@ -200,7 +204,7 @@
                     <div class="bg-black/60 px-4 py-3 text-[11px] font-bold uppercase tracking-widest border-b border-slate-800 text-white"><i class="fas fa-stream text-emerald-500 mr-2"></i> Forensic_Ledger Live Feed</div>
                     <div class="flex-1 overflow-auto dark-scroll">
                         <table class="w-full text-left text-xs admin-data-grid">
-                            <thead><tr><th class="p-3 w-32">Timestamp</th><th class="p-3">Raw Intercepted Query</th><th class="p-3 w-24 text-center">Deceived</th></tr></thead>
+                            <thead><tr><th class="p-3 w-32">Timestamp</th><th class="p-3">Raw Intercepted Query</th><th class="p-3 w-24 text-center">Status</th></tr></thead>
                             <tbody id="adm-ledger-body" class="code-font text-slate-300">
                                 <tr><td colspan="3" class="text-center py-16 text-slate-500">No logs generated yet.</td></tr>
                             </tbody>
@@ -445,6 +449,12 @@
                 const data = await res.json();
                 const logs = data.logs || [];
                 document.getElementById('adm-metric-queries').innerText = logs.length.toLocaleString();
+
+                // CANARY COUNT LOGIC
+                const canaryCount = logs.filter(l => l.action === 'CANARY_TRIGGER').length;
+                const cEl = document.getElementById('adm-metric-canary');
+                if(cEl) cEl.innerText = canaryCount.toLocaleString();
+
             } catch(e) {
                 if (e.name === 'AbortError') return;
                 /* silently skip metric */
@@ -475,20 +485,36 @@
                 }
 
                 tbody.innerHTML = logs.map(l => {
+                    const isCanary   = l.action === 'CANARY_TRIGGER';
                     const isAttack   = l.is_malicious;
                     const isHoneypot = l.is_honeypot_action;
-                    const rowBg      = isAttack ? 'bg-rose-950/20' : isHoneypot ? 'bg-sky-950/20' : '';
-                    const actionColor = isAttack ? 'text-rose-300' : isHoneypot ? 'text-sky-300' : 'text-emerald-300';
+
+                    // Apply visual styling to highlight Canary token events prominently
+                    const rowBg       = isCanary ? 'bg-fuchsia-950/40 animate-[pulse_2s_ease-in-out_infinite]' : isAttack ? 'bg-rose-950/20' : isHoneypot ? 'bg-sky-950/20' : '';
+                    const actionColor = isCanary ? 'text-fuchsia-400' : isAttack ? 'text-rose-300' : isHoneypot ? 'text-sky-300' : 'text-emerald-300';
                     const ts = l.timestamp ? new Date(l.timestamp).toLocaleTimeString() : '—';
-                    const payload = l.payload ? JSON.stringify(l.payload).substring(0, 120) : '—';
-                    const deceivedBadge = isHoneypot
+                    
+                    let payload = l.payload ? (typeof l.payload === 'string' ? l.payload : JSON.stringify(l.payload)) : (l.details || '—');
+                    payload = payload.substring(0, 150);
+
+                    // Insert the attacker IP address right into the payload string for visibility
+                    if (isCanary && (l.ip_address || l.endpoint)) {
+                        payload = `<span class="text-fuchsia-300 font-bold border border-fuchsia-500/50 bg-fuchsia-950/50 px-1 rounded">Attacker Real IP: ${l.ip_address || l.endpoint}</span> <span class="ml-1">${payload}</span>`;
+                    }
+
+                    const actionLabel = isCanary ? `<i class="fas fa-satellite-dish mr-1"></i> [BEACON_TRIPPED]` : `[${l.action || '—'}]`;
+
+                    const deceivedBadge = isCanary
+                        ? `<span class="px-2 py-0.5 rounded text-[9px] font-bold bg-fuchsia-900 border border-fuchsia-400 text-white shadow-[0_0_10px_rgba(192,38,211,0.5)]">IP REVEALED</span>`
+                        : isHoneypot
                         ? `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-900/50 text-sky-400">HONEYPOT</span>`
                         : `<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-800 text-slate-500">REAL</span>`;
+                    
                     return `<tr class="${rowBg} hover:brightness-125 transition">
                         <td class="p-3 text-slate-500 whitespace-nowrap">${ts}</td>
                         <td class="p-3 ${actionColor} max-w-xs">
-                            <span class="font-bold text-slate-400">[${l.action || '—'}]</span>
-                            <span class="text-slate-400 text-[10px] ml-2">${l.endpoint || ''}</span>
+                            <span class="font-bold text-slate-300">${actionLabel}</span>
+                            <span class="text-slate-500 text-[10px] ml-2">${l.endpoint || ''}</span>
                             <div class="text-[10px] text-slate-600 mt-0.5 truncate">${payload}</div>
                         </td>
                         <td class="p-3 text-center">${deceivedBadge}</td>
@@ -606,6 +632,9 @@
                     }
                     if (kind === 'appointments' && colIdx === 4) {
                         return val.startsWith('⚠') ? 'text-orange-400 font-bold' : 'text-slate-500';
+                    }
+                    if (kind === 'forensic_ledger' && val === 'CANARY_TRIGGER') {
+                        return 'text-fuchsia-400 font-bold';
                     }
                     return '';
                 };

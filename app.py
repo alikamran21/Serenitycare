@@ -26,6 +26,7 @@ from api.patientprofile import handler as patientprofile_handler
 from api.auditlogs     import handler as auditlogs_handler
 from api.adminexplorer import handler as adminexplorer_handler
 from api.ping          import handler as ping_handler
+from api.canary        import handler as canary_handler
 
 app = Flask(__name__)
 
@@ -61,6 +62,7 @@ ROUTES = [
     ("/api/auditlogs",       auditlogs_handler,      ["GET",  "OPTIONS"]),
     ("/api/adminexplorer",   adminexplorer_handler,  ["GET",  "OPTIONS"]),
     ("/api/ping",            ping_handler,           ["GET",  "OPTIONS"]),
+    ("/api/canary",          canary_handler,         ["GET",  "OPTIONS"]),
 ]
 
 for path, fn, methods in ROUTES:
